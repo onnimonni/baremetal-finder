@@ -27,7 +27,8 @@ fn dc_location(dc: &str) -> (&'static str, &'static str) {
 }
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static BUILD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#""buildId":"([^"]+)""#).unwrap());
+    static BUILD: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r#""buildId":"([^"]+)""#).expect("static regex is valid"));
     let html = get_text(client, &format!("{SITE}/en/pricing/")).await?;
     let build = BUILD.captures(&html).context("dedibox: no buildId")?;
     let v = get_json(

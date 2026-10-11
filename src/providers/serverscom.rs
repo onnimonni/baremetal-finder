@@ -14,8 +14,9 @@ const URL: &str = "https://www.servers.com/products/scalable-bare-metal";
 const HOURS_PER_MONTH: f64 = 730.0;
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static LIST: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?s)const flavor_list = (\{.*?\});").unwrap());
+    static LIST: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?s)const flavor_list = (\{.*?\});").expect("static regex is valid")
+    });
     let html = get_text(client, URL).await?;
     let json = LIST
         .captures(&html)

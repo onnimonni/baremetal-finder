@@ -13,7 +13,7 @@ use crate::util::{clean, first_num, get_json, get_text, parse_storage};
 const BASE: &str = "https://pebblehost.com";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -56,7 +56,8 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
 }
 
 fn parse(html: &str) -> Vec<Offer> {
-    static CT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\((\d+)c/(\d+)t\)").unwrap());
+    static CT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\((\d+)c/(\d+)t\)").expect("static regex is valid"));
     let doc = Html::parse_document(html);
     let row = sel("tr[data-stockurl]");
     let td = sel("td");

@@ -1,0 +1,4 @@
+rules:
+  # This is a scraper: every URL is the public endpoint of the provider it
+  # reads, not deployment configuration.
+  ai-slop/hardcoded-url: "off"

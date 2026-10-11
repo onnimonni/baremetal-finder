@@ -117,7 +117,7 @@ fn split_cpu_count(cpu: &str, count: u32) -> (u32, String) {
         }
     }
     static PREFIX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"^(\d+)\s*[x×]\s*(.+)$").unwrap());
+        LazyLock::new(|| Regex::new(r"^(\d+)\s*[x×]\s*(.+)$").expect("static regex is valid"));
     match PREFIX.captures(cpu) {
         Some(c) => (
             if count > 1 {

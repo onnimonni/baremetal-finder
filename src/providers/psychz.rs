@@ -14,7 +14,7 @@ use crate::util::{clean, first_num, parse_storage};
 const URL: &str = "https://www.psychz.net/dashboard/client/web/order/dedicated-server";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -22,7 +22,8 @@ fn text(e: ElementRef) -> String {
 }
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static RENEW: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Renews at ([\d.,]+)").unwrap());
+    static RENEW: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"Renews at ([\d.,]+)").expect("static regex is valid"));
     let html = client
         .get(URL)
         .header("X-Dedicated-Shell-Data", "1")

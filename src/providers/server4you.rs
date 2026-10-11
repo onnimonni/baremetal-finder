@@ -15,7 +15,8 @@ const URL: &str = "https://server4you.com/de/dedicated-server/";
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
     static PUSH: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r#"self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)"#).unwrap()
+        Regex::new(r#"self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)"#)
+            .expect("static regex is valid")
     });
     let html = get_text(client, URL).await?;
     let flight: String = PUSH

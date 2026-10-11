@@ -10,7 +10,7 @@ use crate::util::{clean, first_num, get_text, parse_storage};
 const URL: &str = "https://www.interserver.net/dedicated/buy-now-servers.html";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {

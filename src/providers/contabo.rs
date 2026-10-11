@@ -26,7 +26,7 @@ fn country(region: &str) -> &'static str {
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
     let html = get_text(client, &format!("{BASE}/dedicated-servers/")).await?;
-    let re = Regex::new(r#"data-product-id="([A-Za-z0-9]+)""#).unwrap();
+    let re = Regex::new(r#"data-product-id="([A-Za-z0-9]+)""#).expect("static regex is valid");
     let mut ids: Vec<String> = re.captures_iter(&html).map(|c| c[1].to_string()).collect();
     ids.sort();
     ids.dedup();

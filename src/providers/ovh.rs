@@ -162,8 +162,10 @@ fn addon<'a>(cat: &'a Catalog, plan: &Value, family: &str, option: &str) -> Opti
 }
 
 fn offer(cat: &Catalog, plan: &Value, a: &Value, dc: &Value) -> Option<Offer> {
-    static RAM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"ram-(\d+)g").unwrap());
-    static BW: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"bandwidth-(\d+)").unwrap());
+    static RAM: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"ram-(\d+)g").expect("static regex is valid"));
+    static BW: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"bandwidth-(\d+)").expect("static regex is valid"));
 
     let plan_code = plan["planCode"].as_str()?;
     let memory = a["memory"].as_str().unwrap_or_default();
@@ -255,8 +257,9 @@ fn offer(cat: &Catalog, plan: &Value, a: &Value, dc: &Value) -> Option<Offer> {
 /// "softraid-2x960nvme" -> 1920 GB NVMe, "softraid-3x4000sa" -> 12000 GB,
 /// "hybridsoftraid-2x4000sa-1x500nvme" -> 8500 GB.
 fn ovh_storage(code: &str) -> (Option<f64>, Option<bool>) {
-    static DISK: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(\d+)x(\d+)(nvme|ssd|sa|hdd)").unwrap());
+    static DISK: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(\d+)x(\d+)(nvme|ssd|sa|hdd)").expect("static regex is valid")
+    });
     let mut total = 0.0;
     let mut nvme = false;
     for c in DISK.captures_iter(code) {

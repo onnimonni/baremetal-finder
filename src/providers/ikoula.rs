@@ -10,7 +10,7 @@ use crate::util::{clean, first_num, get_text, parse_storage};
 const RANGES: &[&str] = &["agile", "classic", "power", "xtreme", "regen"];
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {

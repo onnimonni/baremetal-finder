@@ -36,7 +36,7 @@ fn dc_country(id: &str) -> Option<(&'static str, &'static str)> {
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
     static NEXT: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r#"(?s)<script id="__NEXT_DATA__" type="application/json">(.*?)</script>"#)
-            .unwrap()
+            .expect("static regex is valid")
     });
     let mut products = Vec::new();
     for page in PAGES {
@@ -215,7 +215,8 @@ fn collect_tables<'a>(v: &'a Value, out: &mut Vec<&'a Value>) {
 /// bare `"\n…"` text nodes.
 fn mdx_texts(src: &str) -> Vec<String> {
     static TXT: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r#"children:\s*"((?:[^"\\]|\\.)*)"|"\\n((?:[^"\\]|\\.)+)""#).unwrap()
+        Regex::new(r#"children:\s*"((?:[^"\\]|\\.)*)"|"\\n((?:[^"\\]|\\.)+)""#)
+            .expect("static regex is valid")
     });
     TXT.captures_iter(src)
         .filter_map(|c| c.get(1).or(c.get(2)))

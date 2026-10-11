@@ -14,7 +14,7 @@ use crate::util::{clean, first_num, get_json, parse_storage};
 const SEARCH: &str = "https://oneprovider.com/search-page";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -74,10 +74,13 @@ fn eur_price(field: Option<ElementRef>) -> Option<f64> {
 }
 
 fn parse(html: &str) -> Vec<Offer> {
-    static CT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)c/(\d+)t").unwrap());
-    static DRIVE: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(\d+)x\s*([\d.,]+)\s*(GB|TB)\s*\(([^)]*)\)").unwrap());
-    static AMOUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"cpu-amount-(\d+)").unwrap());
+    static CT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d+)c/(\d+)t").expect("static regex is valid"));
+    static DRIVE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(\d+)x\s*([\d.,]+)\s*(GB|TB)\s*\(([^)]*)\)").expect("static regex is valid")
+    });
+    static AMOUNT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"cpu-amount-(\d+)").expect("static regex is valid"));
     let doc = Html::parse_fragment(html);
     let row = sel("div.results-tr.dedicated-server[data-pid]");
     let s = |q: &str| sel(q);

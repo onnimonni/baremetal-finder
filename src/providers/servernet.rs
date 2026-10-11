@@ -13,7 +13,7 @@ use crate::util::{clean, first_num, get_text, parse_storage};
 const URL: &str = "https://server.net/dedicated-servers";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -26,9 +26,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
 }
 
 fn parse(html: &str) -> Vec<Offer> {
-    static CORES: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(\d+)\s*Core\s*\((\d+)C HT\)").unwrap());
-    static PAREN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\(([^)]+)\)").unwrap());
+    static CORES: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(\d+)\s*Core\s*\((\d+)C HT\)").expect("static regex is valid")
+    });
+    static PAREN: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\(([^)]+)\)").expect("static regex is valid"));
     let doc = Html::parse_document(html);
     let item = sel(".server-item");
     let name_sel = sel(".text-xl a");

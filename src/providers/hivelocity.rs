@@ -37,8 +37,10 @@ fn dc_country(dc: &str) -> Option<&'static str> {
 }
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static COUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+)\s*x\s*").unwrap());
-    static GHZ: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+[\d.]+\s*GHz.*$").unwrap());
+    static COUNT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(\d+)\s*x\s*").expect("static regex is valid"));
+    static GHZ: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\s+[\d.]+\s*GHz.*$").expect("static regex is valid"));
     let v = get_json(client, URL).await?;
     let mut out = Vec::new();
     for (dc, products) in v.as_object().into_iter().flatten() {

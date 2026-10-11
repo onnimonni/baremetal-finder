@@ -22,7 +22,7 @@ const CATALOG: &[&str] = &[
 ];
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -31,7 +31,7 @@ fn text(e: ElementRef) -> String {
 
 fn tax_factor(html: &str) -> f64 {
     static TAX: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"tax_percent\s*:\s*([\d.]+)").unwrap());
+        LazyLock::new(|| Regex::new(r"tax_percent\s*:\s*([\d.]+)").expect("static regex is valid"));
     TAX.captures(html)
         .and_then(|c| c[1].parse::<f64>().ok())
         .map_or(1.19, |p| 1.0 + p / 100.0)
@@ -51,9 +51,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
 }
 
 fn parse_depot(html: &str) -> Vec<Offer> {
-    static CT: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"Cores:\s*(\d+),\s*Threads:\s*(\d+)").unwrap());
-    static SCORE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Score:\s*(\d+)").unwrap());
+    static CT: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"Cores:\s*(\d+),\s*Threads:\s*(\d+)").expect("static regex is valid")
+    });
+    static SCORE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"Score:\s*(\d+)").expect("static regex is valid"));
     let tax = tax_factor(html);
     let doc = Html::parse_document(html);
     let entry = sel("details.product-entry");
@@ -118,7 +120,8 @@ fn parse_depot(html: &str) -> Vec<Offer> {
 }
 
 fn parse_catalog(html: &str) -> Vec<Offer> {
-    static MARKS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)\(MT\)").unwrap());
+    static MARKS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d+)\(MT\)").expect("static regex is valid"));
     let tax = tax_factor(html);
     let doc = Html::parse_document(html);
     let card = sel(".product-card");

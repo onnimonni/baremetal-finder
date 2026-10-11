@@ -22,7 +22,7 @@ const GROUPS: &[&str] = &[
 ];
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -180,14 +180,16 @@ fn lines(e: ElementRef) -> Vec<String> {
 
 /// "1x Intel Xeon E5-2623 v4 4-Kerne Bis zu 3.20 GHz" -> "1x Intel Xeon E5-2623 v4"
 fn cpu_model(s: &str) -> String {
-    static TAIL: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)\s+(\d+-Kerne|Bis zu|@).*$").unwrap());
+    static TAIL: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?i)\s+(\d+-Kerne|Bis zu|@).*$").expect("static regex is valid")
+    });
     TAIL.replace(s, "").to_string()
 }
 
 /// "1x AMD Ryzen 9 9950X3D" -> (1, "AMD Ryzen 9 9950X3D")
 fn split_count(s: &str) -> (u32, String) {
-    static COUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+)\s*[x×]\s*(.+)$").unwrap());
+    static COUNT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"^(\d+)\s*[x×]\s*(.+)$").expect("static regex is valid"));
     COUNT
         .captures(s)
         .map(|c| (c[1].parse().unwrap_or(1), c[2].to_string()))

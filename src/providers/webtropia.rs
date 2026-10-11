@@ -31,9 +31,12 @@ async fn get(c: &reqwest::Client, url: &str, token: Option<&str>) -> Result<Stri
 }
 
 pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static BUNDLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"main\.[a-f0-9]+\.js").unwrap());
-    static TOKEN: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r#"storeId:"webtropia",masterToken:"([a-f0-9]+)""#).unwrap());
+    static BUNDLE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"main\.[a-f0-9]+\.js").expect("static regex is valid"));
+    static TOKEN: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"storeId:"webtropia",masterToken:"([a-f0-9]+)""#)
+            .expect("static regex is valid")
+    });
     let c = browser_client()?;
     // The token is public (shipped to every browser); read it fresh from the
     // bundle, or use WEBTROPIA_TOKEN when Cloudflare blocks the HTML pages.

@@ -14,7 +14,7 @@ const BASE: &str = "https://mevspace.com";
 const FINDER: &str = "https://mevspace.com/dedicated-servers/render-configurations?min_price=0&max_price=100000&min_cores=1&max_cores=1024&min_threads=1&max_threads=2048&min_frequency=0&max_frequency=10&min_ram=1&max_ram=100000&min_storage_capacity=0&max_storage_capacity=1000000&sort=ascending&internet=1";
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -40,7 +40,8 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
 }
 
 fn parse(html: &str) -> Vec<Offer> {
-    static PARAMS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)c/(\d+)t").unwrap());
+    static PARAMS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d+)c/(\d+)t").expect("static regex is valid"));
     let doc = Html::parse_fragment(html);
     let item = sel(".configuration-item");
     let cpu_sel = sel(".cpu-name");

@@ -51,7 +51,8 @@ pub fn parse_num(s: &str) -> Option<f64> {
 
 /// First number found in a string, e.g. "€147,68 EUR" -> 147.68
 pub fn first_num(s: &str) -> Option<f64> {
-    static NUM: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d[\d.,]*").unwrap());
+    static NUM: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\d[\d.,]*").expect("static regex is valid"));
     NUM.find(s)
         .and_then(|m| parse_num(m.as_str().trim_end_matches(['.', ','])))
 }
@@ -60,7 +61,8 @@ pub fn first_num(s: &str) -> Option<f64> {
 /// "2 x 1.92TB Ent NVME", "2x 512 GB NVMe", "1 x 1TB NVME + 2 x 4TB HDD".
 pub fn parse_storage(s: &str) -> (Option<f64>, Option<bool>) {
     static DISK: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*(TB|GB|T|G)\b").unwrap()
+        Regex::new(r"(?i)(?:(\d+)\s*[x×]\s*)?(\d+(?:[.,]\d+)?)\s*(TB|GB|T|G)\b")
+            .expect("static regex is valid")
     });
     let mut total = 0.0;
     let mut found = false;

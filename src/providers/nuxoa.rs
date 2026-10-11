@@ -19,7 +19,7 @@ const PAGES: &[(&str, &str)] = &[
 ];
 
 fn sel(s: &str) -> Selector {
-    Selector::parse(s).unwrap()
+    Selector::parse(s).expect("static CSS selector is valid")
 }
 
 fn text(e: ElementRef) -> String {
@@ -27,7 +27,8 @@ fn text(e: ElementRef) -> String {
 }
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    static CT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)C\s*/\s*(\d+)T").unwrap());
+    static CT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(\d+)C\s*/\s*(\d+)T").expect("static regex is valid"));
     let item = sel("a.dedi-item");
     let col = |c: &str| sel(&format!("[data-col={c}]"));
     let (server_s, cpu_s, name_s, ram_s, disk_s, net_s, price_s) = (

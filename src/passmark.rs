@@ -105,15 +105,17 @@ async fn fetch_once(client: &reqwest::Client) -> Result<Vec<Cpu>> {
 /// "Intel® Core™ i7-8700 @ 3.20GHz" -> "i7-8700",
 /// "Intel Xeon E5-1650 v3" -> "xeon e5-1650v3", "AMD RYZEN 9 9950X" -> "ryzen 9 9950x".
 pub fn cpu_key(name: &str) -> String {
-    static AT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"@.*$").unwrap());
+    static AT: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"@.*$").expect("static regex is valid"));
     static NOISE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"\b(amd|intel|core|processor|cpu|with radeon graphics|\d+-core|\d+\s*cores?)\b")
-            .unwrap()
+            .expect("static regex is valid")
     });
-    static VER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+(v\d)\b").unwrap());
+    static VER: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\s+(v\d)\b").expect("static regex is valid"));
     // OVH writes "Xeon-E3 1270 v6" for PassMark's "Xeon E3-1270 v6".
     static XEON_E: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"\b(e[3579]?)\s+(\d{4})").unwrap());
+        LazyLock::new(|| Regex::new(r"\b(e[3579]?)\s+(\d{4})").expect("static regex is valid"));
     // "i7-7700(k)" -> "i7-7700k"; "E5-2680v1" -> "E5-2680" (PassMark omits v1)
     let s = clean(name)
         .to_lowercase()
