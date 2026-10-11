@@ -200,10 +200,11 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
         filters.push(format!("provider IN ({})", list.join(",")));
     }
     let order = match a.sort {
-        Sort::Value => "mark_per_eur DESC NULLS LAST",
-        Sort::Mark => "cpu_mark DESC NULLS LAST",
-        Sort::Single => "single_thread DESC NULLS LAST",
-        Sort::Price => "effective_monthly_eur",
+        // Output column aliases: the query groups, so only selected columns sort.
+        Sort::Value => "mark_eur DESC NULLS LAST",
+        Sort::Mark => "mark DESC NULLS LAST",
+        Sort::Single => "st DESC NULLS LAST, mark_eur DESC NULLS LAST",
+        Sort::Price => "eur_mo, setup",
     };
     // One row per provider+model+price: OVH/Hetzner repeat offers per datacenter.
     let sql = format!(
