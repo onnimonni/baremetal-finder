@@ -1,0 +1,4 @@
+[profile.dev.package."*"]
+debug = false
+strip = true
+opt-level = 2
