@@ -19,3 +19,4 @@ devenv.local.yaml
 # already existing elements were commented out
 
 #/target
+.aislop/history.jsonl
