@@ -1,6 +1,6 @@
 # baremetal-finder
 
-Find the best price/performance dedicated (bare-metal) servers that are **in stock right now**, across 35 hosting providers, with an EU-only filter.
+Find the best price/performance dedicated (bare-metal) servers that are **in stock right now**, across 37 hosting providers, with an EU-only filter.
 
 It fetches public catalogs, prices and stock signals, scores every CPU with [PassMark](https://www.cpubenchmark.net/) and stores snapshots in DuckDB so you can rank offers by benchmark points per euro.
 
@@ -85,11 +85,17 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 | Psychz | order table fragment | available / out of stock |
 | Tier.Net | WHMCS store | in / out of stock |
 | PhoenixNAP | billing products API | unknown |
-| webtropia | store API | in stock / limited / sold (needs `WEBTROPIA_TOKEN` if Cloudflare blocks the store page) |
+| webtropia | store API (browser TLS) | in stock / limited / sold |
 | server4you | flight data + order page | per variant |
 | Ikoula | HTML + shop page | per product |
 | avoro | instant list HTML | listed = available |
 | Velia | Upmind API | unknown |
+| Nocix / WholeSaleInternet | HTML + cart page (browser TLS) | in / out of stock |
+| i3D.net | marketing page (browser TLS) + FlexMetal API | unknown (set `I3D_TOKEN` for per-location stock) |
+
+## Browser TLS fingerprints
+
+A few sites (webtropia, Nocix/WholeSaleInternet, i3D.net) sit behind Cloudflare checks that reject non-browser TLS handshakes. Those are fetched with [wreq](https://github.com/0x676e67/wreq) + `wreq-util` emulating Chrome's BoringSSL ClientHello and HTTP/2 settings, straight from your own IP (no proxies). Building it compiles BoringSSL, so `cmake` and a C compiler are needed (included in `devenv.nix`).
 
 ## Caveats
 

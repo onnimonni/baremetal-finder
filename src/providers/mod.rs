@@ -15,6 +15,7 @@ pub mod dedibox;
 pub mod hetzner;
 pub mod hivelocity;
 pub mod hostkey;
+pub mod i3d;
 pub mod ikoula;
 pub mod interserver;
 pub mod ionos;
@@ -23,6 +24,7 @@ pub mod latitude;
 pub mod leaseweb;
 pub mod mevspace;
 pub mod netcup;
+pub mod nocix;
 pub mod nuxoa;
 pub mod oneprovider;
 pub mod ovh;
@@ -86,4 +88,6 @@ pub const ALL: &[(&str, Fetch)] = &[
     ("ikoula", fetcher!(ikoula::fetch)),
     ("avoro", fetcher!(avoro::fetch)),
     ("velia", fetcher!(velia::fetch)),
+    ("nocix", fetcher!(nocix::fetch)),
+    ("i3d", fetcher!(i3d::fetch)),
 ];

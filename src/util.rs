@@ -14,6 +14,34 @@ pub fn client() -> Result<reqwest::Client> {
         .build()?)
 }
 
+/// Client that reproduces Chrome's TLS (BoringSSL ClientHello/JA3/JA4) and
+/// HTTP/2 fingerprint, for sites behind Cloudflare-style bot checks that
+/// reject plain rustls clients. Egresses from the host IP (no proxies).
+pub fn browser() -> Result<wreq::Client> {
+    use wreq_util::{Emulation, Platform, Profile};
+    let emulation = Emulation::builder()
+        .profile(Profile::Chrome149)
+        .platform(Platform::MacOS)
+        .build();
+    Ok(wreq::Client::builder()
+        .emulation(emulation)
+        .cookie_store(true)
+        .timeout(Duration::from_secs(60))
+        .build()?)
+}
+
+pub async fn browser_text(client: &wreq::Client, url: &str) -> Result<String> {
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .with_context(|| format!("GET {url}"))?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    anyhow::ensure!(status.is_success(), "GET {url} -> {status}");
+    Ok(body)
+}
+
 pub async fn get_text(client: &reqwest::Client, url: &str) -> Result<String> {
     let resp = client
         .get(url)

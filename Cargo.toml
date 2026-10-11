@@ -20,3 +20,5 @@ scraper = "0.27.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.152"
 tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }
+wreq = { version = "0.16.1", features = ["gzip", "brotli", "cookies", "json"] }
+wreq-util = { version = "0.2.0", features = ["emulation", "emulation-compression"] }

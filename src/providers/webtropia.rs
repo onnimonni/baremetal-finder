@@ -1,6 +1,6 @@
 //! webtropia (myLoc, Düsseldorf): Angular store backed by a JSON API that
 //! the shop calls with a public "master token" embedded in its JS bundle.
-//! Cloudflare only lets plain HTTP/1.1 requests through.
+//! Cloudflare rejects non-browser TLS, so this uses the Chrome-emulating client.
 
 use std::sync::LazyLock;
 
@@ -9,25 +9,22 @@ use regex::Regex;
 use serde_json::Value;
 
 use crate::model::{Offer, Stock};
-use crate::util::{UA, first_num, parse_storage};
+use crate::util::{browser, first_num, parse_storage};
 
 const STORE: &str = "https://store.webtropia.com";
 
-/// Plain HTTP/1.1 with only a User-Agent gets through; extra browser
-/// headers (or HTTP/2) trip Cloudflare's bot check.
-fn browser_client() -> Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
-        .user_agent(UA)
-        .http1_only()
-        .build()?)
-}
-
-async fn get(c: &reqwest::Client, url: &str, token: Option<&str>) -> Result<String> {
+async fn get(c: &wreq::Client, url: &str, token: Option<&str>) -> Result<String> {
     let mut req = c.get(url);
     if let Some(t) = token {
-        req = req.bearer_auth(t).header("Accept", "application/json");
+        req = req
+            .header("Authorization", format!("Bearer {t}"))
+            .header("Accept", "application/json");
     }
-    Ok(req.send().await?.error_for_status()?.text().await?)
+    let resp = req.send().await.with_context(|| format!("GET {url}"))?;
+    let status = resp.status();
+    let body = resp.text().await?;
+    anyhow::ensure!(status.is_success(), "GET {url} -> {status}");
+    Ok(body)
 }
 
 pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
@@ -37,15 +34,15 @@ pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
         Regex::new(r#"storeId:"webtropia",masterToken:"([a-f0-9]+)""#)
             .expect("static regex is valid")
     });
-    let c = browser_client()?;
+    let c = browser()?;
     // The token is public (shipped to every browser); read it fresh from the
-    // bundle, or use WEBTROPIA_TOKEN when Cloudflare blocks the HTML pages.
+    // bundle unless WEBTROPIA_TOKEN overrides it.
     let token = match std::env::var("WEBTROPIA_TOKEN") {
         Ok(t) => t,
         Err(_) => {
             let home = get(&c, &format!("{STORE}/de/"), None)
                 .await
-                .context("webtropia: store page blocked; set WEBTROPIA_TOKEN")?;
+                .context("webtropia: store page")?;
             let bundle = BUNDLE
                 .find(&home)
                 .context("webtropia: no main bundle")?
