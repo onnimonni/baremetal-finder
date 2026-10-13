@@ -72,6 +72,9 @@ struct TopArgs {
     /// Only this RAM generation, e.g. DDR5 (stated by provider or implied by CPU)
     #[arg(long)]
     ram_type: Option<String>,
+    /// dedicated, vps or all
+    #[arg(long, default_value = "all")]
+    kind: String,
     /// Max effective monthly EUR (setup amortized over 12 months)
     #[arg(long)]
     max_price: Option<f64>,
@@ -198,6 +201,12 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
     if a.nvme {
         filters.push("nvme".into());
     }
+    if a.kind != "all" {
+        filters.push(format!(
+            "coalesce(kind, 'dedicated') = '{}'",
+            a.kind.replace('\'', "")
+        ));
+    }
     if let Some(v) = &a.ram_type {
         filters.push(format!(
             "ram_type = '{}'",
@@ -227,7 +236,8 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
     };
     // One row per provider+model+price: OVH/Hetzner repeat offers per datacenter.
     let sql = format!(
-        "SELECT provider, name, cpu, cores AS c, ram_gb::INT AS ram, ram_type AS mem, storage_gb::INT AS disk_gb,
+        "SELECT provider, coalesce(kind, 'dedicated') || CASE WHEN shared_cpu THEN '(shared)' ELSE '' END AS kind, name, cpu,
+                coalesce(vcpus::VARCHAR || 'v', cores::VARCHAR) AS c, ram_gb::INT AS ram, ram_type AS mem, storage_gb::INT AS disk_gb,
                 coalesce('gen' || nvme_gen, CASE WHEN nvme THEN 'nvme' END) AS ssd,
                 round(price_monthly_eur, 2) AS eur_mo, round(setup_fee_eur, 0) AS setup,
                 cpu_mark::INT AS mark, single_thread::INT AS st, mark_per_eur AS mark_eur,

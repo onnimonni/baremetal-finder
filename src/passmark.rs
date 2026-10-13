@@ -190,6 +190,11 @@ impl Index {
     /// Look up a single-socket CPU and scale for multi-socket boxes.
     pub fn lookup(&self, name: &str, cpu_count: u32) -> Option<Match> {
         let key = cpu_key(name);
+        // "Intel/AMD" or "AMD EPYC" without a model number says nothing about
+        // speed; don't let it hit generic PassMark rows like "Intel 2.80GHz".
+        if model_tokens(&key).is_empty() {
+            return None;
+        }
         let (cpu, method) = match self.by_key.get(&key) {
             Some(c) => (c, "exact"),
             None => (self.fuzzy(&key)?, "token"),
@@ -414,6 +419,7 @@ mod tests {
         assert_eq!(idx.lookup("Ryzen 7950X", 1).unwrap().cpumark, 2.0);
         assert_eq!(idx.lookup("AMD Ryzen 9 7950XP", 1).unwrap().cpumark, 2.0);
         assert!(idx.lookup("AMD EPYC 7950X", 1).is_none());
+        assert!(idx.lookup("Intel/AMD (DigitalOcean)", 1).is_none());
     }
 
     #[test]

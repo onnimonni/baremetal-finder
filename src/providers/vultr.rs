@@ -111,3 +111,91 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
     }
     Ok(out)
 }
+
+/// Cloud Compute plans. vc2/vhf/vhp share vCPUs, voc (Optimized Cloud) is
+/// dedicated. A plan listed for a region but missing from its availability
+/// list is sold out there.
+pub async fn vps(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    let plans = get_json(client, &format!("{API}/plans?per_page=500")).await?;
+    let regions = get_json(client, &format!("{API}/regions?per_page=500")).await?;
+    let regions: HashMap<String, Value> = regions["regions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|r| Some((r["id"].as_str()?.to_string(), r.clone())))
+        .collect();
+    let mut available: HashMap<String, HashSet<String>> = HashMap::new();
+    for region in regions.keys() {
+        if let Ok(v) = get_json(client, &format!("{API}/regions/{region}/availability")).await {
+            let set = v["available_plans"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|p| p.as_str().map(String::from))
+                .collect();
+            available.insert(region.clone(), set);
+        }
+    }
+    let mut out = Vec::new();
+    for p in plans["plans"].as_array().into_iter().flatten() {
+        let kind = p["type"].as_str().unwrap_or_default();
+        let shared = match kind {
+            "vc2" | "vhf" | "vhp" => true,
+            k if k.starts_with("voc") => false,
+            _ => continue, // GPU / storage plans
+        };
+        let id = p["id"].as_str().unwrap_or_default();
+        let vcpus = p["vcpu_count"].as_u64().unwrap_or(0) as u32;
+        for loc in p["locations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            let r = regions.get(loc);
+            let price = p["location_cost"][loc]["monthly_cost"]
+                .as_f64()
+                .or(p["monthly_cost"].as_f64())
+                .unwrap_or(0.0);
+            let mut o = Offer::new("vultr_vps", format!("{id}@{loc}"));
+            o.kind = "vps";
+            o.name = id.to_string();
+            o.cpu = format!(
+                "{} (Vultr {kind})",
+                p["cpu_vendor"].as_str().unwrap_or("x86")
+            );
+            o.vcpus = Some(vcpus);
+            o.threads = Some(vcpus);
+            o.shared_cpu = Some(shared);
+            o.ram_gb = p["ram"].as_f64().map(|mb| mb / 1024.0);
+            o.storage_gb = p["disk"].as_f64();
+            o.storage = format!(
+                "{} GB {}",
+                p["disk"],
+                p["disk_type"].as_str().unwrap_or("SSD")
+            );
+            o.nvme = Some(kind != "vc2");
+            o.traffic = p["bandwidth"]
+                .as_f64()
+                .map(|gb| format!("{} TB", gb / 1000.0));
+            o.location = r
+                .and_then(|r| r["city"].as_str())
+                .unwrap_or(loc)
+                .to_string();
+            o.country = r
+                .and_then(|r| r["country"].as_str())
+                .unwrap_or_default()
+                .to_string();
+            o.price_monthly = price;
+            o.currency = "USD";
+            o.stock = match available.get(loc) {
+                Some(s) if s.contains(id) => Stock::InStock,
+                Some(_) => Stock::OutOfStock,
+                None => Stock::Unknown,
+            };
+            o.url = "https://www.vultr.com/pricing/".into();
+            out.push(o);
+        }
+    }
+    Ok(out)
+}

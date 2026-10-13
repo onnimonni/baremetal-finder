@@ -153,6 +153,25 @@ pub fn balanced_json(s: &str) -> Option<&str> {
     None
 }
 
+/// Joined Next.js App Router "flight" payload (`self.__next_f.push([1,"…"])`
+/// string chunks), which embeds the page's data as JSON fragments.
+pub fn next_flight(html: &str) -> String {
+    static PUSH: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r#"self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)"#)
+            .expect("static regex is valid")
+    });
+    PUSH.captures_iter(html)
+        .filter_map(|c| serde_json::from_str::<String>(&c[1]).ok())
+        .collect()
+}
+
+/// JSON value following `"key":` somewhere in `text`.
+pub fn json_after(text: &str, key: &str) -> Option<serde_json::Value> {
+    let needle = format!("\"{key}\":");
+    let start = text.find(&needle)? + needle.len();
+    serde_json::from_str(balanced_json(&text[start..])?).ok()
+}
+
 /// Normalize whitespace and strip trademark noise.
 pub fn clean(s: &str) -> String {
     s.replace(['™', '®'], "")

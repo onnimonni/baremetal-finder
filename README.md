@@ -1,6 +1,6 @@
 # baremetal-finder
 
-Find the best price/performance dedicated (bare-metal) servers that are **in stock right now**, across 56 hosting providers, with an EU-only filter.
+Find the best price/performance dedicated (bare-metal) servers and VPS that are **in stock right now**, across 73 provider catalogs, with an EU-only filter.
 
 It fetches public catalogs, prices and stock signals, scores every CPU with [PassMark](https://www.cpubenchmark.net/) and stores snapshots in DuckDB so you can rank offers by benchmark points per euro.
 
@@ -35,6 +35,7 @@ cargo run --release -- providers                  # list provider names
 | `--include-unknown` | also show offers whose provider exposes no stock signal |
 | `--any-stock` | also show sold-out offers |
 | `--min-cores`, `--min-ram`, `--min-storage`, `--nvme`, `--min-single` | hardware filters |
+| `--kind dedicated\|vps` | bare metal or virtual servers (default: all) |
 | `--ram-type DDR5` | RAM generation (stated by the provider, else implied by the CPU platform) |
 | `--max-price` | max effective €/month (setup fee spread over 12 months) |
 | `--sort value\|mark\|single\|price` | PassMark per €, multi-thread, single-thread, price |
@@ -109,7 +110,30 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 | Dedimax | broker JSON feed | ready-in-minutes flag |
 | WebNX | WHMCS products JSON | quantity |
 | ServerMania | inventory API | quantity per location |
-| QuickPacket / RackNerd (browser TLS) / GreenCloud | WHMCS store | quantity where tracked |
+| QuickPacket / RackNerd (browser TLS) / GreenCloud / Servinga | WHMCS store | quantity where tracked |
+| STRATO | HTML tables (Limited Hardware + regular) | limited list = in stock; regular unknown |
+| hosttech (CH) | HTML (leftover servers + root servers) | units left; root servers unknown |
+| Dinahosting | machines JSON | `< 24h` = in stock, else ask |
+| HostZealot | page state JSON | unknown |
+| Melbicom | paged ajax JSON (~110 requests) | unknown |
+| aurologic | offer JSON in page | unknown (instant stock needs reCAPTCHA) |
+
+### VPS / cloud (`--kind vps`)
+
+Score = host CPU PassMark × vCPUs / host threads. Shared-vCPU plans (`shared_cpu`) are optimistic: neighbours compete for the same cores. Plans whose host CPU model isn't published (Vultr, OVH, Contabo VPS) have no score and sort last; use `--sort price`.
+
+| Provider | Source | Stock signal |
+|---|---|---|
+| Hetzner Cloud | pricing page + price API | per location (`not-available`) |
+| Linode / Akamai | public API | per region availability |
+| UpCloud | public pricing API | unknown |
+| DigitalOcean | pricing page data | per region |
+| Exoscale | public pricing API | unknown |
+| Vultr Cloud Compute | public API | per region availability |
+| Scaleway Instances | tokenless catalog + availability API | available / scarce / shortage |
+| OVHcloud VPS | public catalog + datacenter rule | available / out-of-stock per DC |
+| Contabo VPS / VDS | catalog API | per product |
+| netcup VPS | content API | per variant |
 
 ## Browser TLS fingerprints
 
@@ -123,7 +147,7 @@ To add another challenged site, list it in `WEBVIEW_PAGES` in `src/providers/mod
 
 ## Caveats
 
-- Prices are monthly, converted to EUR with ECB rates. Most are excl. VAT; where a site only shows gross prices VAT is stripped (noted in `note`). Latitude, Clouvider, PebbleHost and server4you may include tax.
+- Prices are monthly, converted to EUR with ECB rates. Most are excl. VAT; where a site only shows gross prices VAT is stripped (noted in `note`). Latitude, Clouvider, PebbleHost and server4you may include tax; hosttech CHF prices are taken as shown. STRATO and aurologic prices are converted from gross (19% VAT).
 - Several providers show promo or long-term prices on listings; the tool prefers month-to-month prices (e.g. Alpenhost order pages, Psychz renewal price). IONOS prices are first-year promos (regular price in `note`).
 - CPU scores (`score_source`): `passmark_exact` / `passmark_token` (PassMark, matched by name or model number incl. spelling variants like "EPYC 9355" → "9355P", "Xeon-D 2141I" → "D-2141I"), `provider` / `provider_pooled` (a score the provider publishes, shared across providers with the same CPU), `estimate_sibling` (closest PassMark model in the same family with a similar core count, scaled per core; `passmark_name` starts with `~`). Multi-socket boxes use PassMark's measured multi-CPU score when available, otherwise ~1.7× per extra socket.
 - `ram_type` (DDR3/4/5) comes from the listing text when present (`ram_type_source = 'provider'`), otherwise from the CPU platform (`'cpu'`, e.g. AM5/SP5 are DDR5-only). `nvme_gen` (PCIe 3/4/5) is only set when the provider states it.

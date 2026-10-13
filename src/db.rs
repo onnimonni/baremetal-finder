@@ -9,7 +9,7 @@ use regex::Regex;
 use crate::geo;
 use crate::hw;
 use crate::model::Offer;
-use crate::passmark::{Cpu, Index, cpu_key};
+use crate::passmark::{Cpu, Index, Match, cpu_key};
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS offers (
@@ -50,6 +50,9 @@ CREATE TABLE IF NOT EXISTS offers (
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS ram_type VARCHAR;
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS ram_type_source VARCHAR;
 ALTER TABLE offers ADD COLUMN IF NOT EXISTS nvme_gen INTEGER;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS kind VARCHAR;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS vcpus INTEGER;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS shared_cpu BOOLEAN;
 
 CREATE TABLE IF NOT EXISTS fetch_runs (
     fetched_at TIMESTAMPTZ NOT NULL,
@@ -168,7 +171,7 @@ pub fn pool_provider_marks(results: &[(&str, Result<Vec<Offer>>)]) -> HashMap<St
         .filter_map(|(_, r)| r.as_ref().ok())
         .flatten()
     {
-        if let (Some(mark), None) = (o.provider_cpu_mark, o.dedicated_cores) {
+        if let (Some(mark), None, None) = (o.provider_cpu_mark, o.dedicated_cores, o.vcpus) {
             let (count, cpu) = split_cpu_count(&o.cpu, o.cpu_count);
             if count == 1 {
                 by_cpu.entry(cpu_key(&cpu)).or_default().push(mark);
@@ -183,6 +186,27 @@ pub fn pool_provider_marks(results: &[(&str, Result<Vec<Offer>>)]) -> HashMap<St
         })
         .collect()
 }
+
+/// VPS plans that don't name their host CPU: the CPU generation the provider
+/// documents (or that the plan is commonly reported to run on), used as a
+/// rough per-vCPU reference. Scores are marked `passmark_host_guess`.
+const HOST_GUESS: &[(&str, &str)] = &[
+    ("Hetzner CPX", "AMD EPYC 7502P"),
+    ("Hetzner CCX", "AMD EPYC 7713"),
+    ("Hetzner CX", "Intel Xeon Gold 6148"),
+    ("Linode", "AMD EPYC 7713"),
+    ("AMD EPYC (DigitalOcean Premium)", "AMD EPYC 7543"),
+    (
+        "Intel Xeon (DigitalOcean Premium)",
+        "Intel Xeon Platinum 8358",
+    ),
+    ("(DigitalOcean)", "Intel Xeon Gold 6140"),
+    ("UpCloud", "AMD EPYC 7542"),
+    ("AMD (Vultr", "AMD EPYC 7713"),
+    ("Intel (Vultr vhp)", "Intel Xeon Platinum 8358"),
+    ("Intel (Vultr", "Intel Xeon Gold 6140"),
+    ("Contabo vCPU", "AMD EPYC 7282"),
+];
 
 pub fn save_run(
     conn: &Connection,
@@ -214,14 +238,30 @@ pub fn save_run(
                 1.0
             }
         });
-        let m = index.lookup(&cpu, cpu_count);
+        let m = index.lookup(&cpu, cpu_count).or_else(|| {
+            let (_, reference) = HOST_GUESS.iter().find(|(k, _)| cpu.contains(k))?;
+            index.lookup(reference, 1).map(|m| Match {
+                name: format!("~{}", m.name),
+                method: "host_guess",
+                ..m
+            })
+        });
         // Last resort: closest PassMark sibling scaled by cores.
         let estimate = (m.is_none() && o.provider_cpu_mark.is_none() && pooled_mark.is_none())
             .then(|| index.estimate(&cpu, o.cores, cpu_count))
             .flatten();
         // VM slices get their share of the whole chip's multi-thread score.
-        let share = match (o.dedicated_cores, m.as_ref().and_then(|m| m.cores)) {
-            (Some(d), Some(t)) if t > 0 => (d as f64 / t as f64).min(1.0),
+        // VPS: vCPUs are host threads; dedicated-core VMs: physical cores.
+        let host = m.as_ref();
+        let share = match (o.vcpus, o.dedicated_cores) {
+            (Some(v), _) => host
+                .and_then(|m| m.threads.or(m.cores))
+                .filter(|t| *t > 0)
+                .map_or(1.0, |t| (v as f64 / t as f64).min(1.0)),
+            (None, Some(d)) => host
+                .and_then(|m| m.cores)
+                .filter(|t| *t > 0)
+                .map_or(1.0, |t| (d as f64 / t as f64).min(1.0)),
             _ => 1.0,
         };
         let (mark, single, source, pm_name) = match (&m, o.provider_cpu_mark) {
@@ -268,7 +308,7 @@ pub fn save_run(
             .and_then(|_| hw::nvme_gen_from_text(&disk_text));
         let cores = o.cores.or(m.as_ref().and_then(|m| m.cores));
         let threads = o.threads.or_else(|| {
-            if o.dedicated_cores.is_some() {
+            if o.dedicated_cores.is_some() || o.vcpus.is_some() {
                 None
             } else {
                 m.as_ref().and_then(|m| m.threads)
@@ -309,6 +349,9 @@ pub fn save_run(
             ram_type,
             ram_source,
             nvme_gen,
+            o.kind,
+            o.vcpus,
+            o.shared_cpu,
         ])?;
     }
     Ok(())

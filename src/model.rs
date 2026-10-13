@@ -59,6 +59,12 @@ pub struct Offer {
     /// VM products: dedicated cores out of a bigger CPU; the benchmark
     /// score is scaled down to this share.
     pub dedicated_cores: Option<u32>,
+    /// "dedicated" (bare metal) or "vps" (virtual machine / cloud instance).
+    pub kind: &'static str,
+    /// VPS: number of vCPUs (hardware threads of the host CPU).
+    pub vcpus: Option<u32>,
+    /// VPS: vCPUs are shared with other tenants (score is optimistic).
+    pub shared_cpu: Option<bool>,
     /// Free-form spec text from the listing (RAM line, drive line …), used to
     /// detect DDR generation and NVMe PCIe generation.
     pub spec_text: String,
@@ -93,6 +99,9 @@ impl Offer {
             availability: None,
             provider_cpu_mark: None,
             dedicated_cores: None,
+            kind: "dedicated",
+            vcpus: None,
+            shared_cpu: None,
             spec_text: String::new(),
             url: String::new(),
             note: None,

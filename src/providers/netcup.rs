@@ -27,12 +27,23 @@ fn country(code: &str) -> &'static str {
         "VIE" => "AT",
         "MNZ" => "US",
         "SIN" => "SG",
+        "AMS" => "NL",
         _ => "DE", // NUE, EU ("No preference Europe" = Nuremberg/Vienna)
     }
 }
 
+/// Root servers: VMs with dedicated cores.
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    let page = get_json(client, &format!("{API}/pages/slug/en/server/root-server")).await?;
+    scrape(client, "root-server").await
+}
+
+/// VPS: shared vCores.
+pub async fn vps(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    scrape(client, "vps").await
+}
+
+async fn scrape(client: &reqwest::Client, line: &str) -> Result<Vec<Offer>> {
+    let page = get_json(client, &format!("{API}/pages/slug/en/server/{line}")).await?;
     let mut slugs = BTreeSet::new();
     // Page contents reference sections as `{"section": {"id": N}}`.
     let sections: BTreeSet<i64> = page["data"]["contents"]
@@ -47,7 +58,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
         };
         collect_urls(&sec, &mut slugs);
     }
-    anyhow::ensure!(!slugs.is_empty(), "netcup: no root server products found");
+    anyhow::ensure!(!slugs.is_empty(), "netcup: no {line} products found");
 
     let mut out = Vec::new();
     for slug in slugs {
@@ -87,34 +98,69 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 .as_array()
                 .into_iter()
                 .flatten()
-                .filter(|d| d["title"] == "Features")
+                .filter(|d| d["title"] == "Features" || d["title"] == "Leistungen")
                 .flat_map(|d| d["features"].as_array().cloned().unwrap_or_default())
                 .map(|f| {
                     (
-                        f["label"].as_str().unwrap_or_default().to_string(),
+                        f["label"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .trim_end_matches(':')
+                            .trim()
+                            .to_string(),
                         decode(f["value"].as_str().unwrap_or_default()),
                     )
                 })
                 .collect();
+            // Some product pages only exist in German.
             let feat = |l: &str| {
+                let de = match l {
+                    "Processor" => "Prozessor",
+                    "Hard disk" => "Festplattenverbund",
+                    "Server location" => "Server Standort",
+                    "CPU cores" => "CPU Kerne",
+                    _ => l,
+                };
                 feats
                     .iter()
-                    .find(|(k, _)| k == l)
+                    .find(|(k, _)| k == l || k == de)
                     .map(|(_, v)| v.clone())
                     .unwrap_or_default()
             };
             let disk = feat("Hard disk");
             let sold_out = var["showSoldOut"] == true || var["availableToOrder"] == false;
 
-            let mut o = Offer::new("netcup", var["id"].to_string());
+            let provider = if line == "vps" {
+                "netcup_vps"
+            } else {
+                "netcup"
+            };
+            let mut o = Offer::new(provider, var["id"].to_string());
             o.name = title.to_string();
-            o.cpu = feat("Processor");
-            o.dedicated_cores = first_num(&feat("CPU cores")).map(|c| c as u32);
-            o.cores = o.dedicated_cores;
-            o.ram_gb = first_num(&feat("Main memory"));
+            o.kind = "vps";
+            if line == "vps" {
+                // "Processor: 2 vCore"; model unpublished, but G12 VPS share
+                // the root servers' EPYC 9645 platform.
+                o.cpu = if title.contains("G12") {
+                    "AMD EPYC 9645"
+                } else {
+                    "AMD EPYC (netcup VPS)"
+                }
+                .into();
+                o.vcpus = first_num(&feat("Processor")).map(|c| c as u32);
+                o.threads = o.vcpus;
+                o.shared_cpu = Some(true);
+            } else {
+                o.cpu = feat("Processor");
+                o.dedicated_cores = first_num(&feat("CPU cores")).map(|c| c as u32);
+                o.cores = o.dedicated_cores;
+                o.shared_cpu = Some(false);
+            }
+            o.ram_gb = first_num(&feats_ecc(&feats));
             (o.storage_gb, o.nvme) = parse_storage(&disk);
             o.storage = disk;
-            o.port_mbps = first_num(&feat("Interface Speed")).map(|g| (g * 1000.0) as u32);
+            o.port_mbps =
+                first_num(&feat("Interface Speed").replace(',', ".")).map(|g| (g * 1000.0) as u32);
             o.traffic = Some("flat (throttled >3TB/24h)".into());
             o.location = feat("Server location");
             o.country = country(loc).into();
@@ -131,11 +177,28 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 .collect::<Vec<_>>()
                 .join(" | ");
             o.url = format!("https://www.netcup.com{slug}");
-            o.note = Some(format!("VM with dedicated cores; {}", longer.join(", ")));
+            o.note = Some(format!(
+                "{}; {}",
+                if line == "vps" {
+                    "shared vCores"
+                } else {
+                    "VM with dedicated cores"
+                },
+                longer.join(", ")
+            ));
             out.push(o);
         }
     }
     Ok(out)
+}
+
+/// "Main memory" (root servers), "Main memory ECC" (VPS) or German.
+fn feats_ecc(feats: &[(String, String)]) -> String {
+    feats
+        .iter()
+        .find(|(k, _)| k.starts_with("Main memory") || k.starts_with("Arbeitsspeicher"))
+        .map(|(_, v)| v.clone())
+        .unwrap_or_default()
 }
 
 /// Product page paths ("/en/server/root-server/<slug>") anywhere in a section.

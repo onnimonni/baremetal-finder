@@ -1,5 +1,5 @@
 //! Small WHMCS hosts sharing the same store template: QuickPacket, RackNerd,
-//! GreenCloud. Location comes from the store group (or "US" when the group
+//! GreenCloud, Servinga. Location comes from the store group (or "US" when the group
 //! doesn't say).
 
 use anyhow::Result;
@@ -63,17 +63,28 @@ const GREENCLOUD: &[Group] = &[
     ),
 ];
 
+const SERVINGA: &[Group] = &[(
+    "https://metal.servinga.com/index.php?rp=/store/dedicated-server",
+    "NL",
+    "Rotterdam",
+)];
+
 pub async fn quickpacket(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    scrape(Http::Plain(client), "quickpacket", QUICKPACKET).await
+    scrape(Http::Plain(client), "quickpacket", QUICKPACKET, "USD").await
 }
 
 /// RackNerd's store rejects non-browser TLS.
 pub async fn racknerd(_client: &reqwest::Client) -> Result<Vec<Offer>> {
-    scrape(Http::Browser(&browser()?), "racknerd", RACKNERD).await
+    scrape(Http::Browser(&browser()?), "racknerd", RACKNERD, "USD").await
 }
 
 pub async fn greencloud(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    scrape(Http::Plain(client), "greencloud", GREENCLOUD).await
+    scrape(Http::Plain(client), "greencloud", GREENCLOUD, "USD").await
+}
+
+/// Prices exclude VAT; sold-out products are hidden from the store.
+pub async fn servinga(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    scrape(Http::Plain(client), "servinga", SERVINGA, "EUR").await
 }
 
 enum Http<'a> {
@@ -98,6 +109,7 @@ fn place_from_lines(lines: &[String]) -> Option<(&'static str, &'static str)> {
         ("london", ("GB", "London")),
         ("amsterdam", ("NL", "Amsterdam")),
         ("frankfurt", ("DE", "Frankfurt")),
+        ("rotterdam", ("NL", "Rotterdam")),
         ("hong kong", ("HK", "Hong Kong")),
         ("singapore", ("SG", "Singapore")),
         ("tokyo", ("JP", "Tokyo")),
@@ -110,7 +122,12 @@ fn place_from_lines(lines: &[String]) -> Option<(&'static str, &'static str)> {
     .map(|(_, v)| v)
 }
 
-async fn scrape(client: Http<'_>, provider: &'static str, groups: &[Group]) -> Result<Vec<Offer>> {
+async fn scrape(
+    client: Http<'_>,
+    provider: &'static str,
+    groups: &[Group],
+    currency: &'static str,
+) -> Result<Vec<Offer>> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for (url, country, location) in groups {
@@ -149,7 +166,7 @@ async fn scrape(client: Http<'_>, provider: &'static str, groups: &[Group]) -> R
             o.country = country.to_string();
             o.price_monthly = price;
             o.setup_fee = p.setup;
-            o.currency = "USD";
+            o.currency = currency;
             o.stock = p.stock();
             o.stock_qty = p.qty;
             o.spec_text = p.lines.join(" | ");

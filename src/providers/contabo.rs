@@ -25,7 +25,19 @@ fn country(region: &str) -> &'static str {
 }
 
 pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    let html = get_text(client, &format!("{BASE}/dedicated-servers/")).await?;
+    scrape(client, "dedicated-servers", None).await
+}
+
+/// Cloud VPS (shared vCPU) and Cloud VDS (dedicated cores).
+pub async fn vps(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    let mut out = scrape(client, "vps", Some(true)).await?;
+    out.extend(scrape(client, "vps-dedicated", Some(false)).await?);
+    Ok(out)
+}
+
+/// `shared`: None for bare metal, Some(..) for virtual servers.
+async fn scrape(client: &reqwest::Client, page: &str, shared: Option<bool>) -> Result<Vec<Offer>> {
+    let html = get_text(client, &format!("{BASE}/{page}/")).await?;
     let re = Regex::new(r#"data-product-id="([A-Za-z0-9]+)""#).expect("static regex is valid");
     let mut ids: Vec<String> = re.captures_iter(&html).map(|c| c[1].to_string()).collect();
     ids.sort();
@@ -86,12 +98,34 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             let region = loc["value"].as_str().unwrap_or_default();
             let slug = loc["slug"].as_str().unwrap_or_default();
             let mut o = Offer::new(
-                "contabo",
+                if shared.is_some() {
+                    "contabo_vps"
+                } else {
+                    "contabo"
+                },
                 format!("{}@{slug}", p["slug"].as_str().unwrap_or(id)),
             );
             o.name = p["title"].as_str().unwrap_or_default().to_string();
             o.cpu = cpu["subtitle"].as_str().unwrap_or_default().to_string();
-            o.cores = cpu["title"].as_str().and_then(first_num).map(|c| c as u32);
+            let n = cpu["title"].as_str().and_then(first_num).map(|c| c as u32);
+            if shared.is_some() && o.cpu.is_empty() {
+                o.cpu = "Contabo vCPU".into();
+            }
+            match shared {
+                None => o.cores = n,
+                Some(true) => {
+                    o.kind = "vps";
+                    o.vcpus = n;
+                    o.threads = n;
+                    o.shared_cpu = Some(true);
+                }
+                Some(false) => {
+                    o.kind = "vps";
+                    o.dedicated_cores = n;
+                    o.cores = n;
+                    o.shared_cpu = Some(false);
+                }
+            }
             o.ram_gb = spec("ram")["value"]
                 .as_f64()
                 .or_else(|| spec("ram")["title"].as_str().and_then(first_num));
@@ -127,10 +161,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 spec("ram")["subtitle"].as_str().unwrap_or_default(),
                 o.storage
             );
-            o.url = format!(
-                "{BASE}/dedicated-servers/{}",
-                p["slug"].as_str().unwrap_or_default()
-            );
+            o.url = format!("{BASE}/{page}/{}", p["slug"].as_str().unwrap_or_default());
             o.note = Some("stock flag is per product; monthly term price".into());
             out.push(o);
         }

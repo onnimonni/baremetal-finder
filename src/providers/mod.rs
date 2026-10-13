@@ -8,21 +8,32 @@ use anyhow::Result;
 
 use crate::model::Offer;
 
+pub mod advin;
 pub mod alpenhost;
+pub mod aurologic;
 pub mod avoro;
 pub mod bacloud;
 pub mod cherry;
 pub mod clouvider;
 pub mod contabo;
 pub mod datapacket;
+pub mod datawagon;
 pub mod dedibox;
 pub mod dedimax;
+pub mod digitalocean;
+pub mod dinahosting;
 pub mod evoluso;
+pub mod exoscale;
 pub mod fasthosts;
+pub mod fdc;
 pub mod flokinet;
+pub mod gcore;
 pub mod hetzner;
+pub mod hetznercloud;
 pub mod hivelocity;
 pub mod hostkey;
+pub mod hosttech;
+pub mod hostzealot;
 pub mod i3d;
 pub mod ikoula;
 pub mod interserver;
@@ -30,6 +41,8 @@ pub mod ionos;
 pub mod ipprojects;
 pub mod latitude;
 pub mod leaseweb;
+pub mod linode;
+pub mod melbicom;
 pub mod mevspace;
 pub mod netcup;
 pub mod netrouting;
@@ -39,20 +52,27 @@ pub mod novoserve;
 pub mod nuxoa;
 pub mod oneprovider;
 pub mod ovh;
+pub mod ovh_vps;
 pub mod pebblehost;
 pub mod phoenixnap;
 pub mod prepaidhoster;
 pub mod psychz;
 pub mod rapidswitch;
+pub mod sakura;
 pub mod scaleway;
+pub mod scaleway_instances;
 pub mod server4you;
 pub mod servermania;
 pub mod servernet;
 pub mod serverroom;
 pub mod serverscom;
+pub mod sharktech;
+pub mod shockhosting;
 pub mod spectraip;
 pub mod speedypage;
+pub mod strato;
 pub mod tiernet;
+pub mod upcloud;
 pub mod velia;
 pub mod vultr;
 pub mod webnx;
@@ -129,6 +149,30 @@ pub const ALL: &[(&str, Fetch)] = &[
     ("quickpacket", fetcher!(whmcs_hosts::quickpacket)),
     ("racknerd", fetcher!(whmcs_hosts::racknerd)),
     ("greencloud", fetcher!(whmcs_hosts::greencloud)),
+    ("hetznercloud", fetcher!(hetznercloud::fetch)),
+    ("linode", fetcher!(linode::fetch)),
+    ("upcloud", fetcher!(upcloud::fetch)),
+    ("digitalocean", fetcher!(digitalocean::fetch)),
+    ("exoscale", fetcher!(exoscale::fetch)),
+    ("servinga", fetcher!(whmcs_hosts::servinga)),
+    ("strato", fetcher!(strato::fetch)),
+    ("hosttech", fetcher!(hosttech::fetch)),
+    ("dinahosting", fetcher!(dinahosting::fetch)),
+    ("hostzealot", fetcher!(hostzealot::fetch)),
+    ("melbicom", fetcher!(melbicom::fetch)),
+    ("aurologic", fetcher!(aurologic::fetch)),
+    ("fdc", fetcher!(fdc::fetch)),
+    ("sakura", fetcher!(sakura::fetch)),
+    ("sharktech", fetcher!(sharktech::fetch)),
+    ("shockhosting", fetcher!(shockhosting::fetch)),
+    ("gcore", fetcher!(gcore::fetch)),
+    ("advin", fetcher!(advin::fetch)),
+    ("datawagon", fetcher!(datawagon::fetch)),
+    ("vultr_vps", fetcher!(vultr::vps)),
+    ("scaleway_instances", fetcher!(scaleway_instances::fetch)),
+    ("ovh_vps", fetcher!(ovh_vps::fetch)),
+    ("contabo_vps", fetcher!(contabo::vps)),
+    ("netcup_vps", fetcher!(netcup::vps)),
 ];
 
 /// Pages behind Cloudflare JavaScript challenges: (provider, url, JS that is
