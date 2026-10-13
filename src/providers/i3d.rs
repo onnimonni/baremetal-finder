@@ -82,6 +82,12 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 Some(a) => (Stock::InStock, Some(a.clone())),
                 None => (Stock::Unknown, None),
             };
+            o.spec_text = card
+                .specs
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(" | ");
             o.url = PAGE.into();
             o.note = Some("\"from\" price; stock needs I3D_TOKEN".into());
             out.push(o);

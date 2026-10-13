@@ -101,6 +101,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                     o.location = "France".into();
                     o.country = "FR".into();
                     o.price_monthly = price;
+                    o.spec_text = text(a);
                     o.url = href;
                     Some(o)
                 })

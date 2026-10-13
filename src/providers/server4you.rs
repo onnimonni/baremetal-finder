@@ -84,6 +84,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 o.country = country.into();
                 o.price_monthly = price;
                 o.stock = stock;
+                o.spec_text = format!(
+                    "{} {}",
+                    s["MemoryType"].as_str().unwrap_or_default(),
+                    o.storage
+                );
                 o.url = order.to_string();
                 o.note = Some("price as listed (may include VAT)".into());
                 out.push(o);

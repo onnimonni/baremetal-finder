@@ -7,8 +7,9 @@ use duckdb::{Connection, params};
 use regex::Regex;
 
 use crate::geo;
+use crate::hw;
 use crate::model::Offer;
-use crate::passmark::{Cpu, Index};
+use crate::passmark::{Cpu, Index, cpu_key};
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS offers (
@@ -44,6 +45,11 @@ CREATE TABLE IF NOT EXISTS offers (
     url VARCHAR,
     note VARCHAR
 );
+
+-- Added after the first release; appended so old databases keep working.
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS ram_type VARCHAR;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS ram_type_source VARCHAR;
+ALTER TABLE offers ADD COLUMN IF NOT EXISTS nvme_gen INTEGER;
 
 CREATE TABLE IF NOT EXISTS fetch_runs (
     fetched_at TIMESTAMPTZ NOT NULL,
@@ -149,12 +155,38 @@ pub fn load_cpu_scores(conn: &Connection) -> Result<Vec<Cpu>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
+/// Median provider-published score per normalized CPU name, so a CPU one
+/// provider benchmarks (DataPacket, OVH, Dedibox …) also scores elsewhere.
+pub fn pool_provider_marks(results: &[(&str, Result<Vec<Offer>>)]) -> HashMap<String, f64> {
+    let mut by_cpu: HashMap<String, Vec<f64>> = HashMap::new();
+    for o in results
+        .iter()
+        .filter_map(|(_, r)| r.as_ref().ok())
+        .flatten()
+    {
+        if let (Some(mark), None) = (o.provider_cpu_mark, o.dedicated_cores) {
+            let (count, cpu) = split_cpu_count(&o.cpu, o.cpu_count);
+            if count == 1 {
+                by_cpu.entry(cpu_key(&cpu)).or_default().push(mark);
+            }
+        }
+    }
+    by_cpu
+        .into_iter()
+        .map(|(k, mut v)| {
+            v.sort_by(f64::total_cmp);
+            (k, v[v.len() / 2])
+        })
+        .collect()
+}
+
 pub fn save_run(
     conn: &Connection,
     at: DateTime<Utc>,
     provider: &str,
     result: &Result<Vec<Offer>>,
     index: &Index,
+    pooled: &HashMap<String, f64>,
     fx: &HashMap<String, f64>,
 ) -> Result<()> {
     let (ok, n, err) = match result {
@@ -171,7 +203,18 @@ pub fn save_run(
     for o in offers {
         let rate = fx.get(o.currency).copied().unwrap_or(1.0);
         let (cpu_count, cpu) = split_cpu_count(&o.cpu, o.cpu_count);
+        let pooled_mark = pooled.get(&cpu_key(&cpu)).map(|m| {
+            m * if cpu_count > 1 {
+                cpu_count as f64 * 0.85
+            } else {
+                1.0
+            }
+        });
         let m = index.lookup(&cpu, cpu_count);
+        // Last resort: closest PassMark sibling scaled by cores.
+        let estimate = (m.is_none() && o.provider_cpu_mark.is_none() && pooled_mark.is_none())
+            .then(|| index.estimate(&cpu, o.cores, cpu_count))
+            .flatten();
         // VM slices get their share of the whole chip's multi-thread score.
         let share = match (o.dedicated_cores, m.as_ref().and_then(|m| m.cores)) {
             (Some(d), Some(t)) if t > 0 => (d as f64 / t as f64).min(1.0),
@@ -185,8 +228,40 @@ pub fn save_run(
                 Some(m.name.clone()),
             ),
             (None, Some(p)) => (Some(p), None, Some("provider".to_string()), None),
-            (None, None) => (None, None, None, None),
+            (None, None) => match (pooled_mark, &estimate) {
+                (Some(p), _) => (Some(p), None, Some("provider_pooled".to_string()), None),
+                (None, Some(e)) => (
+                    Some(e.cpumark),
+                    e.thread,
+                    Some("estimate_sibling".to_string()),
+                    Some(e.name.clone()),
+                ),
+                (None, None) => (None, None, None, None),
+            },
         };
+        let text = format!(
+            "{} {} {} {}",
+            o.spec_text,
+            o.name,
+            o.storage,
+            o.note.as_deref().unwrap_or("")
+        );
+        let (ram_type, ram_source) = match hw::ram_type_from_text(&text) {
+            Some(t) => (Some(t), Some("provider")),
+            None => {
+                let key = m
+                    .as_ref()
+                    .map_or_else(|| cpu_key(&cpu), |m| cpu_key(&m.name));
+                (hw::ram_type_from_cpu(&key), Some("cpu"))
+            }
+        };
+        let ram_source = ram_type.and(ram_source);
+        // Not the plan name: "Power-03 Gen3" is a product generation, not PCIe.
+        let disk_text = format!("{} {}", o.spec_text, o.storage);
+        let nvme_gen = o
+            .nvme
+            .filter(|n| *n)
+            .and_then(|_| hw::nvme_gen_from_text(&disk_text));
         let cores = o.cores.or(m.as_ref().and_then(|m| m.cores));
         let threads = o.threads.or_else(|| {
             if o.dedicated_cores.is_some() {
@@ -227,6 +302,9 @@ pub fn save_run(
             pm_name,
             o.url,
             o.note,
+            ram_type,
+            ram_source,
+            nvme_gen,
         ])?;
     }
     Ok(())

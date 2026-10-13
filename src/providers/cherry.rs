@@ -87,6 +87,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 Stock::OutOfStock
             };
             o.stock_qty = Some(qty);
+            o.spec_text = format!(
+                "{} {}",
+                specs["memory"]["name"].as_str().unwrap_or_default(),
+                o.storage
+            );
             o.url = format!("https://www.cherryservers.com/server-customizer/{slug}");
             out.push(o);
         }

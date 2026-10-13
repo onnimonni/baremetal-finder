@@ -114,9 +114,13 @@ pub fn cpu_key(name: &str) -> String {
     static VER: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"\s+(v\d)\b").expect("static regex is valid"));
     // OVH writes "Xeon-E3 1270 v6" for PassMark's "Xeon E3-1270 v6".
-    static XEON_E: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"\b(e[3579]?)\s+(\d{4})").expect("static regex is valid"));
+    // "Xeon-E3 1270" / "Xeon-D 2141I" / "Core i9 14900K" -> hyphenated model.
+    static XEON_E: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"\b(i[3579]|[de][3579]?)\s+(\d{4,5})").expect("static regex is valid")
+    });
     // "i7-7700(k)" -> "i7-7700k"; "E5-2680v1" -> "E5-2680" (PassMark omits v1)
+    // "i9-9900K/E-2288G": providers list alternatives; score the first.
+    let name = name.split('/').next().unwrap_or(name);
     let s = clean(name)
         .to_lowercase()
         .replace("xeon-", "xeon ")
@@ -214,23 +218,23 @@ impl Index {
     }
 
     /// Match on the model number token ("7950x", "e3-1240v3", "i7-8700"),
-    /// preferring the candidate with the fewest extra tokens.
+    /// preferring the candidate with the fewest extra tokens. Spelling
+    /// variants are tried only when the literal tokens match nothing.
     fn fuzzy(&self, key: &str) -> Option<&Cpu> {
-        let mut tokens = model_tokens(key);
-        // Providers invent suffixes PassMark doesn't list ("EPYC 9124P").
-        if !tokens.iter().any(|t| self.by_token.contains_key(t)) {
-            tokens = tokens
-                .iter()
-                .map(|t| t.trim_end_matches('p').to_string())
-                .collect();
-        }
+        let tokens = model_tokens(key);
+        let known = |ts: &[String]| ts.iter().any(|t| self.by_token.contains_key(t));
+        let tokens = if known(&tokens) {
+            tokens
+        } else {
+            tokens.iter().flat_map(|t| token_variants(t)).collect()
+        };
         let want: Vec<&str> = key.split(' ').collect();
         let families: Vec<&str> = want
             .iter()
             .copied()
             .filter(|w| FAMILIES.contains(w))
             .collect();
-        tokens
+        let best = tokens
             .iter()
             .filter_map(|t| self.by_token.get(t))
             .flatten()
@@ -242,8 +246,104 @@ impl Index {
                 let missing = want.iter().filter(|w| !have.contains(w)).count();
                 let extra = have.iter().filter(|h| !want.contains(h)).count();
                 (missing * 10 + extra, c.key.len())
-            })
+            });
+        // "Ampere Altra Max M128-30": PassMark only has the family entry.
+        best.or_else(|| {
+            let (rest, last) = key.rsplit_once(' ')?;
+            let family = self.by_key.get(rest)?;
+            (rest.contains(' ') && last.chars().any(|c| c.is_ascii_digit())).then_some(family)
+        })
     }
+}
+
+impl Index {
+    /// Rough score for a CPU PassMark doesn't list: take the closest model
+    /// number in the same family (same leading digit and length, fewest
+    /// extra family words) and scale its per-core score by our core count.
+    pub fn estimate(&self, name: &str, cores: Option<u32>, cpu_count: u32) -> Option<Match> {
+        let key = cpu_key(name);
+        let words: Vec<&str> = key.split(' ').collect();
+        let family: Vec<&str> = words
+            .iter()
+            .copied()
+            .filter(|w| w.chars().all(|c| c.is_ascii_alphabetic()))
+            .collect();
+        let model = model_tokens(&key).into_iter().next()?;
+        let num = |t: &str| -> Option<i64> {
+            t.chars()
+                .take_while(char::is_ascii_digit)
+                .collect::<String>()
+                .parse()
+                .ok()
+        };
+        let ours = num(&model)?;
+        if family.is_empty() {
+            return None;
+        }
+        let sibling = self
+            .by_key
+            .values()
+            .filter(|c| c.cores.is_some_and(|n| n > 0))
+            .filter_map(|c| {
+                let theirs: Vec<&str> = c.key.split(' ').collect();
+                if !family.iter().all(|f| theirs.contains(f)) {
+                    return None;
+                }
+                let tok = model_tokens(&c.key).into_iter().next()?;
+                let same_class =
+                    tok.len() == model.len() && tok.chars().next() == model.chars().next();
+                let diff = (num(&tok)? - ours).abs();
+                let extra = theirs
+                    .iter()
+                    .filter(|t| t.chars().all(|c| c.is_ascii_alphabetic()) && !family.contains(t))
+                    .count();
+                // "6731E" (efficiency cores) must prefer other E parts over "6731P".
+                let suffix_mismatch = suffix(&tok) != suffix(&model);
+                // Per-core scores only transfer between similar core counts:
+                // an 8-core frequency part says little about a 40-core one.
+                let comparable = match (cores, c.cores) {
+                    (Some(ours), Some(theirs)) => {
+                        let (a, b) = (f64::from(ours), f64::from(theirs * cpu_count.max(1)));
+                        a.max(b) / a.min(b) <= 2.0
+                    }
+                    _ => true,
+                };
+                (same_class && comparable && diff <= 200)
+                    .then_some(((extra, suffix_mismatch, diff), c))
+            })
+            .min_by_key(|(rank, c)| (*rank, c.key.len()))
+            .map(|(_, c)| c)?;
+        let per_core = sibling.cpumark / f64::from(sibling.cores?);
+        let total_cores = cores.unwrap_or(sibling.cores? * cpu_count.max(1));
+        Some(Match {
+            name: format!("~{}", sibling.name),
+            cpumark: per_core * f64::from(total_cores),
+            thread: sibling.thread,
+            cores: Some(total_cores),
+            threads: None,
+            method: "sibling",
+        })
+    }
+}
+
+/// Trailing letters of a model token: "6731e" -> "e", "8452y" -> "y".
+fn suffix(token: &str) -> &str {
+    token.trim_start_matches(|c: char| c.is_ascii_digit() || c == '-')
+}
+
+/// Alternative spellings of a model token PassMark may use:
+/// "9124p" <-> "9124" (EPYC P suffix), "5650" -> "x5650"/"e5650"/"l5650"
+/// (pre-2012 Xeons listed without their letter prefix).
+fn token_variants(t: &str) -> Vec<String> {
+    let mut out = vec![t.to_string()];
+    match t.strip_suffix('p') {
+        Some(base) => out.push(base.to_string()),
+        None => out.push(format!("{t}p")),
+    }
+    if t.len() == 4 && t.chars().all(|c| c.is_ascii_digit()) {
+        out.extend(["x", "e", "l", "w"].iter().map(|p| format!("{p}{t}")));
+    }
+    out
 }
 
 /// Product family words that must agree between provider and PassMark names.
@@ -306,5 +406,58 @@ mod tests {
         assert_eq!(idx.lookup("Ryzen 7950X", 1).unwrap().cpumark, 2.0);
         assert_eq!(idx.lookup("AMD Ryzen 9 7950XP", 1).unwrap().cpumark, 2.0);
         assert!(idx.lookup("AMD EPYC 7950X", 1).is_none());
+    }
+
+    #[test]
+    fn spelling_variants() {
+        let mk = |n: &str, m: f64| Cpu {
+            name: n.into(),
+            key: cpu_key(n),
+            cpumark: m,
+            thread: None,
+            cores: None,
+            threads: None,
+            cpu_count: 1,
+        };
+        let idx = Index::new(&[
+            mk("AMD EPYC 9355P", 1.0),
+            mk("Intel Xeon D-2141I @ 2.20GHz", 2.0),
+            mk("Intel Core i9-14900K", 3.0),
+            mk("Intel Xeon X5650 @ 2.67GHz", 4.0),
+            mk("Ampere Altra Max", 5.0),
+            mk("Intel Core i9-9900K @ 3.60GHz", 6.0),
+        ]);
+        assert_eq!(idx.lookup("AMD EPYC TURIN 9355", 1).unwrap().cpumark, 1.0);
+        assert_eq!(idx.lookup("Intel Xeon-D 2141I", 1).unwrap().cpumark, 2.0);
+        assert_eq!(idx.lookup("Intel Core i9 14900K", 1).unwrap().cpumark, 3.0);
+        assert_eq!(idx.lookup("Xeon 5650", 1).unwrap().cpumark, 4.0);
+        assert_eq!(
+            idx.lookup("Ampere Altra Max M128-30", 1).unwrap().cpumark,
+            5.0
+        );
+        assert_eq!(idx.lookup("i9-9900K/E-2288G", 1).unwrap().cpumark, 6.0);
+    }
+
+    #[test]
+    fn sibling_estimate() {
+        let cpu = |n: &str, m: f64, cores: u32| Cpu {
+            name: n.into(),
+            key: cpu_key(n),
+            cpumark: m,
+            thread: None,
+            cores: Some(cores),
+            threads: None,
+            cpu_count: 1,
+        };
+        let idx = Index::new(&[
+            cpu("Intel Xeon Platinum 8458P", 600.0, 44),
+            cpu("Intel Xeon Platinum 8380", 400.0, 40),
+            cpu("Intel Xeon Gold 6730", 300.0, 32),
+        ]);
+        // Closest Platinum 84xx sibling, scaled to 32 cores.
+        let m = idx.estimate("Platinum 8452Y", Some(32), 1).unwrap();
+        assert_eq!(m.method, "sibling");
+        assert!((m.cpumark - 600.0 / 44.0 * 32.0).abs() < 1e-6);
+        assert!(idx.estimate("Ampere Altra Q80-30", Some(80), 1).is_none());
     }
 }

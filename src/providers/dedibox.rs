@@ -108,6 +108,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                     Some(false) => Stock::OutOfStock,
                     None => Stock::Unknown,
                 };
+                o.spec_text = format!(
+                    "{} {}",
+                    hw["ram"]["type"].as_str().unwrap_or_default(),
+                    o.storage
+                );
                 o.url = format!("{SITE}/en/dedibox/");
                 o.note = Some(
                     "stock flag is per offer, not per DC; setup waived with 12M+ commitment".into(),

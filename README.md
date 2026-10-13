@@ -35,6 +35,7 @@ cargo run --release -- providers                  # list provider names
 | `--include-unknown` | also show offers whose provider exposes no stock signal |
 | `--any-stock` | also show sold-out offers |
 | `--min-cores`, `--min-ram`, `--min-storage`, `--nvme`, `--min-single` | hardware filters |
+| `--ram-type DDR5` | RAM generation (stated by the provider, else implied by the CPU platform) |
 | `--max-price` | max effective €/month (setup fee spread over 12 months) |
 | `--sort value\|mark\|single\|price` | PassMark per €, multi-thread, single-thread, price |
 
@@ -88,7 +89,7 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 | webtropia | store API (browser TLS) | in stock / limited / sold |
 | server4you | flight data + order page | per variant |
 | Ikoula | HTML + shop page | per product |
-| avoro | instant list HTML | listed = available |
+| avoro | instant list HTML (currently behind a Cloudflare JS challenge, fetch fails) | listed = available |
 | Velia | Upmind API | unknown |
 | Nocix / WholeSaleInternet | HTML + cart page (browser TLS) | in / out of stock |
 | i3D.net | marketing page (browser TLS) + FlexMetal API | unknown (set `I3D_TOKEN` for per-location stock) |
@@ -101,7 +102,8 @@ A few sites (webtropia, Nocix/WholeSaleInternet, i3D.net) sit behind Cloudflare 
 
 - Prices are monthly, converted to EUR with ECB rates. Most are excl. VAT; where a site only shows gross prices VAT is stripped (noted in `note`). Latitude, Clouvider, PebbleHost and server4you may include tax.
 - Several providers show promo or long-term prices on listings; the tool prefers month-to-month prices (e.g. Alpenhost order pages, Psychz renewal price). IONOS prices are first-year promos (regular price in `note`).
-- CPU names are matched to PassMark exactly or by model number; check `score_source` / `passmark_name`. Multi-socket boxes use PassMark's measured multi-CPU score when available, otherwise ~1.7× per extra socket.
+- CPU scores (`score_source`): `passmark_exact` / `passmark_token` (PassMark, matched by name or model number incl. spelling variants like "EPYC 9355" → "9355P", "Xeon-D 2141I" → "D-2141I"), `provider` / `provider_pooled` (a score the provider publishes, shared across providers with the same CPU), `estimate_sibling` (closest PassMark model in the same family with a similar core count, scaled per core; `passmark_name` starts with `~`). Multi-socket boxes use PassMark's measured multi-CPU score when available, otherwise ~1.7× per extra socket.
+- `ram_type` (DDR3/4/5) comes from the listing text when present (`ram_type_source = 'provider'`), otherwise from the CPU platform (`'cpu'`, e.g. AM5/SP5 are DDR5-only). `nvme_gen` (PCIe 3/4/5) is only set when the provider states it.
 - Scrapers break when sites change. `fetch` keeps going when one provider fails and records the error in `fetch_runs`; `top` keeps using that provider's last good snapshot.
 - Be nice: run `fetch` occasionally, not in a tight loop.
 

@@ -111,6 +111,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             };
             o.stock_qty = if stock == "limited" { qty } else { None };
             o.availability = Some(stock.to_string());
+            o.spec_text = format!(
+                "{} {}",
+                p["product_memory"].as_str().unwrap_or_default(),
+                p["product_drive"].as_str().unwrap_or_default()
+            );
             o.url = format!("https://store.hivelocity.net/product/{}", p["product_id"]);
             if p["compute_type"] == "outlet" {
                 o.note = Some("outlet (used)".into());

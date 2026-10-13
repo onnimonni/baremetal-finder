@@ -97,6 +97,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             Some(s) => (Stock::Unknown, Some(s.clone())),
             None => (Stock::Unknown, None),
         };
+        o.spec_text = format!(
+            "{} {}",
+            hw["ram"]["type"].as_str().unwrap_or_default(),
+            o.storage
+        );
         o.url = "https://www.scaleway.com/en/pricing/elastic-metal/".into();
         out.push(o);
     }

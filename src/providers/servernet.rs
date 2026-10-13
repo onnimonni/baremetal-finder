@@ -115,6 +115,7 @@ fn parse(html: &str) -> Vec<Offer> {
             }
             .into(),
         );
+        o.spec_text = text(it);
         o.url = URL.into();
         o.note = Some(cpu_text);
         out.push(o);

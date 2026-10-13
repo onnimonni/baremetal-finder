@@ -200,6 +200,7 @@ fn parse(html: &str) -> Vec<Offer> {
             _ => Stock::InStock,
         };
         o.availability = Some(stock).filter(|s| !s.is_empty());
+        o.spec_text = text(r);
         o.url = format!("https://oneprovider.com/en/configure/dediconf/{pid}");
         out.push(o);
     }

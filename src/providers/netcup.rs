@@ -125,6 +125,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             } else {
                 Stock::InStock
             };
+            o.spec_text = feats
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(" | ");
             o.url = format!("https://www.netcup.com{slug}");
             o.note = Some(format!("VM with dedicated cores; {}", longer.join(", ")));
             out.push(o);

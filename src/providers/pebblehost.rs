@@ -107,6 +107,11 @@ fn parse(html: &str) -> Vec<Offer> {
         o.country = if loc == "UK" { "GB".into() } else { loc };
         o.price_monthly = cents / 100.0;
         o.currency = "USD";
+        o.spec_text = format!(
+            "{} {}",
+            cells.get(2).map(|c| text(*c)).unwrap_or_default(),
+            o.storage
+        );
         o.url = format!("{BASE}{}", a("data-stockurl"));
         out.push(o);
     }

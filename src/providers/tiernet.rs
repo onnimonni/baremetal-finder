@@ -89,6 +89,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             } else {
                 Stock::Unknown
             };
+            o.spec_text = p
+                .select(&by_id("description"))
+                .next()
+                .map(text)
+                .unwrap_or_default();
             o.url = order.map_or_else(
                 || format!("{BASE}/{g}"),
                 |h| format!("https://billing.tier.net{h}"),

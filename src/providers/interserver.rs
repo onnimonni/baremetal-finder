@@ -64,6 +64,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
         o.currency = "USD";
         o.stock = Stock::InStock;
         o.stock_qty = Some(1);
+        o.spec_text = text(r);
         o.url = href.map_or_else(
             || URL.to_string(),
             |h| {

@@ -72,6 +72,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             o.stock = Stock::InStock;
             o.stock_qty = Some(1);
             o.availability = Some("immediately".into());
+            o.spec_text = text(it);
             o.url = href.to_string();
             o.note = Some("used unit, business customers only".into());
             out.push(o);

@@ -5,7 +5,7 @@ use anyhow::Result;
 use scraper::{ElementRef, Html, Selector};
 
 use crate::model::{Offer, Stock};
-use crate::util::{clean, first_num, get_text, parse_storage};
+use crate::util::{browser, browser_text, clean, first_num, parse_storage};
 
 const URL: &str = "https://avoro.eu/de/instant-dedicated";
 
@@ -17,8 +17,9 @@ fn text(e: ElementRef) -> String {
     clean(&e.text().collect::<String>())
 }
 
-pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
-    let html = get_text(client, URL).await?;
+pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
+    // Cloudflare blocks non-browser TLS here.
+    let html = browser_text(&browser()?, URL).await?;
     let doc = Html::parse_document(&html);
     let item = sel(".server-item");
     let title_s = sel("h5.server-item-title");
@@ -95,6 +96,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
         o.stock = Stock::InStock;
         o.stock_qty = Some(1);
         o.availability = Some("instant".into());
+        o.spec_text = specs.join(" | ");
         o.url = URL.into();
         o.note = Some("VAT stripped; one physical unit".into());
         out.push(o);

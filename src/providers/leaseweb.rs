@@ -86,6 +86,7 @@ fn offer(p: &Value) -> Option<Offer> {
         }
         .to_string(),
     );
+    o.spec_text = format!("{} {}", s("defaultRAM"), s("defaultHDDIncludedDiskSize"));
     o.url = format!(
         "https://www.leaseweb.com/en/dedicated-servers/configure/{}",
         s("code")

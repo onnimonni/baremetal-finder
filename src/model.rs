@@ -59,6 +59,9 @@ pub struct Offer {
     /// VM products: dedicated cores out of a bigger CPU; the benchmark
     /// score is scaled down to this share.
     pub dedicated_cores: Option<u32>,
+    /// Free-form spec text from the listing (RAM line, drive line …), used to
+    /// detect DDR generation and NVMe PCIe generation.
+    pub spec_text: String,
     pub url: String,
     pub note: Option<String>,
 }
@@ -90,6 +93,7 @@ impl Offer {
             availability: None,
             provider_cpu_mark: None,
             dedicated_cores: None,
+            spec_text: String::new(),
             url: String::new(),
             note: None,
         }

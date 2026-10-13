@@ -183,6 +183,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 Some(false) => Stock::OutOfStock,
                 None => Stock::Unknown,
             };
+            o.spec_text = all.join(" | ");
             o.url = format!("{SITE}/server/{}", PAGES[0]);
             o.note = Some(format!(
                 "min term {mct}{}",

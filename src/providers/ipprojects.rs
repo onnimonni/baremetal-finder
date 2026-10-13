@@ -105,6 +105,7 @@ fn parse_depot(html: &str) -> Vec<Offer> {
         };
         o.stock_qty = Some(1);
         o.availability = Some(get(&ava_s));
+        o.spec_text = text(e);
         o.url = e
             .select(&order_s)
             .next()
@@ -188,6 +189,7 @@ fn parse_catalog(html: &str) -> Vec<Offer> {
         o.setup_fee = 108.40;
         o.stock = Stock::Unknown;
         o.availability = Some("build-to-order".into());
+        o.spec_text = text(c);
         o.url = href.map_or_else(|| BASE.to_string(), |h| format!("{BASE}{h}"));
         o.note = Some("VAT stripped; setup €0 with 12-month term".into());
         out.push(o);

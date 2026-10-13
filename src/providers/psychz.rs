@@ -100,6 +100,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             Stock::OutOfStock
         };
         o.availability = Some(available);
+        o.spec_text = cells
+            .iter()
+            .map(|e| text(*e))
+            .collect::<Vec<_>>()
+            .join(" | ");
         o.url = href.map_or_else(|| URL.to_string(), |h| format!("https://www.psychz.net{h}"));
         o.note = first_month.map(|f| format!("first month ${f}"));
         out.push(o);

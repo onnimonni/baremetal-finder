@@ -99,6 +99,7 @@ pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
                     o.price_monthly = price.unwrap_or(0.0);
                     o.currency = "USD";
                     o.stock = if out_of_stock { Stock::OutOfStock } else { Stock::InStock };
+                    o.spec_text = text(r);
                     o.url = format!("{BASE}/cart/?id={id}");
                     o.note = Some("also sold as WholeSaleInternet".into());
                     Some(o)

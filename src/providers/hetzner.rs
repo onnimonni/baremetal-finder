@@ -65,6 +65,15 @@ fn auction_offer(s: &Value) -> Option<Offer> {
     o.setup_fee = s["Prices"]["setup"]["EUR"].as_f64().unwrap_or(0.0);
     o.stock = Stock::InStock;
     o.stock_qty = Some(1);
+    o.spec_text = s["Details"]["Description"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" | ")
+        })
+        .unwrap_or_default();
     o.url = format!("https://www.hetzner.com/sb/#search={id}");
     o.note = Some("used hardware; price incl. €1.70 IPv4".into());
     Some(o)

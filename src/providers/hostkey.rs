@@ -114,6 +114,11 @@ fn offer(p: &Value) -> Option<Offer> {
     o.availability = p["extended"]["param1"]
         .as_str()
         .map(|s| s.trim().to_string());
+    o.spec_text = format!(
+        "{} {}",
+        hw["ram"]["description"].as_str().unwrap_or_default(),
+        o.storage
+    );
     o.url = "https://hostkey.com/dedicated-servers/instant/".into();
     Some(o)
 }

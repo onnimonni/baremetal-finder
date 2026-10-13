@@ -121,6 +121,12 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
                 }
                 .into(),
             );
+            o.spec_text = format!(
+                "{} {} {}",
+                spec("ram")["title"].as_str().unwrap_or_default(),
+                spec("ram")["subtitle"].as_str().unwrap_or_default(),
+                o.storage
+            );
             o.url = format!(
                 "{BASE}/dedicated-servers/{}",
                 p["slug"].as_str().unwrap_or_default()

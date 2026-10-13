@@ -123,6 +123,7 @@ pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
             _ => Stock::Unknown,
         };
         o.availability = p["availability"].as_str().map(String::from);
+        o.spec_text = format!("{ram} {}", o.storage);
         o.url = format!("{STORE}/de/configurate/{id}");
         o.note = Some("VAT stripped".into());
         out.push(o);

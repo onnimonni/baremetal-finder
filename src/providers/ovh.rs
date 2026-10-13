@@ -246,6 +246,7 @@ fn offer(cat: &Catalog, plan: &Value, a: &Value, dc: &Value) -> Option<Offer> {
         _ => Stock::InStock, // 1H-high, 1H-low, 24H, 72H …
     };
     o.availability = Some(availability.into());
+    o.spec_text = format!("{memory} {storage}");
     o.url = if cat.region.currency == "USD" {
         "https://us.ovhcloud.com/bare-metal/".into()
     } else {

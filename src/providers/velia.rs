@@ -79,6 +79,7 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             Stock::OutOfStock
         };
         o.availability = p["short_description"].as_str().map(String::from);
+        o.spec_text = desc.to_string();
         o.url = "https://www.velia.net/dedicated-server/".into();
         o.note = Some("no stock signal".into());
         out.push(o);

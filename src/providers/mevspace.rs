@@ -116,6 +116,7 @@ fn parse(html: &str) -> Vec<Offer> {
             _ => Stock::Unknown,
         };
         o.availability = Some(avail);
+        o.spec_text = specs.join(" | ");
         o.url = href.map_or_else(
             || format!("{BASE}/dedicated-servers/server-finder"),
             |h| format!("{BASE}{h}"),

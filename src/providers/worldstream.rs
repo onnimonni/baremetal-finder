@@ -92,6 +92,11 @@ fn offer(s: &Value) -> Option<Offer> {
     };
     o.stock_qty = limited;
     o.availability = s["ttd"].as_i64().map(|m| format!("{}h", m / 60));
+    o.spec_text = format!(
+        "{} {}",
+        s["memory"]["suffix"].as_str().unwrap_or_default(),
+        o.storage
+    );
     o.url = format!(
         "{BASE}/configure/{}/{}",
         s["id"],

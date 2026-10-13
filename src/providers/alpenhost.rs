@@ -152,6 +152,11 @@ fn parse_group(html: &str, group: &str) -> Vec<Listing> {
             (Some(_), _) | (None, true) => Stock::OutOfStock,
             (None, false) => Stock::Unknown,
         };
+        o.spec_text = specs
+            .iter()
+            .map(|(k, v)| format!("{k}: {v}"))
+            .collect::<Vec<_>>()
+            .join(" | ");
         o.url = order_href
             .clone()
             .unwrap_or_else(|| format!("{BASE}/Kundencenter/store/{group}"));

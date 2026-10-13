@@ -1,6 +1,7 @@
 mod db;
 mod fx;
 mod geo;
+mod hw;
 mod model;
 mod passmark;
 mod providers;
@@ -64,6 +65,9 @@ struct TopArgs {
     /// Minimum PassMark single-thread score
     #[arg(long)]
     min_single: Option<f64>,
+    /// Only this RAM generation, e.g. DDR5 (stated by provider or implied by CPU)
+    #[arg(long)]
+    ram_type: Option<String>,
     /// Max effective monthly EUR (setup amortized over 12 months)
     #[arg(long)]
     max_price: Option<f64>,
@@ -133,13 +137,14 @@ async fn fetch(db_path: &str, only: &[String]) -> Result<()> {
     };
     eprintln!("passmark: {} cpus, USD/EUR {:.4}", cpus.len(), rates["USD"]);
     let index = passmark::Index::new(&cpus);
+    let pooled = db::pool_provider_marks(&results);
     let at = chrono::Utc::now();
     for (name, res) in &results {
         match res {
             Ok(v) => eprintln!("{name:>16}: {} offers", v.len()),
             Err(e) => eprintln!("{name:>16}: FAILED {e:#}"),
         }
-        db::save_run(&conn, at, name, res, &index, &rates)?;
+        db::save_run(&conn, at, name, res, &index, &pooled, &rates)?;
     }
     let unmatched: Vec<String> = conn
         .prepare("SELECT DISTINCT provider || ': ' || cpu FROM offers WHERE fetched_at = ? AND cpu_mark IS NULL ORDER BY 1")?
@@ -185,6 +190,12 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
     if a.nvme {
         filters.push("nvme".into());
     }
+    if let Some(v) = &a.ram_type {
+        filters.push(format!(
+            "ram_type = '{}'",
+            v.to_uppercase().replace('\'', "")
+        ));
+    }
     if let Some(v) = a.min_single {
         filters.push(format!("single_thread >= {v}"));
     }
@@ -208,7 +219,8 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
     };
     // One row per provider+model+price: OVH/Hetzner repeat offers per datacenter.
     let sql = format!(
-        "SELECT provider, name, cpu, cores AS c, ram_gb::INT AS ram, storage_gb::INT AS disk_gb,
+        "SELECT provider, name, cpu, cores AS c, ram_gb::INT AS ram, ram_type AS mem, storage_gb::INT AS disk_gb,
+                coalesce('gen' || nvme_gen, CASE WHEN nvme THEN 'nvme' END) AS ssd,
                 round(price_monthly_eur, 2) AS eur_mo, round(setup_fee_eur, 0) AS setup,
                 cpu_mark::INT AS mark, single_thread::INT AS st, mark_per_eur AS mark_eur,
                 string_agg(DISTINCT country || ':' || location, ' ' ORDER BY country || ':' || location) AS where,

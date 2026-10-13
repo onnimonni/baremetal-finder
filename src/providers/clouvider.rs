@@ -117,6 +117,11 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
             o.country = if cc == "UK" { "GB".into() } else { cc };
             o.price_monthly = price;
             o.stock = Stock::Unknown;
+            o.spec_text = specs
+                .iter()
+                .map(|(k, v)| format!("{k}: {v}"))
+                .collect::<Vec<_>>()
+                .join(" | ");
             o.url = format!("https://console.clouvider.co.uk/?cmd=cart&action=add&id={pid}");
             o.note = Some("no stock signal; VAT treatment unclear".into());
             out.push(o);
