@@ -108,7 +108,7 @@ pub fn cpu_key(name: &str) -> String {
     static AT: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"@.*$").expect("static regex is valid"));
     static NOISE: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"\b(amd|intel|core|processor|cpu|with radeon graphics|\d+-core|\d+\s*cores?)\b")
+        Regex::new(r"\b(amd|intel|processor|cpu|apu|with radeon graphics|(single|dual|quad|hexa|six|octa|eight|deca|ten|twelve)[ -]core|\d+-core|\d+\s*cores?|\d+(\.\d+)?\s*ghz|core)\b")
             .expect("static regex is valid")
     });
     static VER: LazyLock<Regex> =
@@ -127,7 +127,7 @@ pub fn cpu_key(name: &str) -> String {
         .replace("(k)", "k")
         .replace("v1", "");
     let s = XEON_E.replace_all(&s, "$1-$2").to_string();
-    let s = AT.replace(&s, "");
+    let s = AT.replace(&s, "").replace(',', " ");
     let s = NOISE.replace_all(&s, " ");
     let s = VER.replace_all(&s, "$1");
     s.split_whitespace().collect::<Vec<_>>().join(" ")
@@ -383,6 +383,14 @@ mod tests {
         assert_eq!(cpu_key("Intel Core Ultra 7 265"), "ultra 7 265");
         assert_eq!(cpu_key("Intel Xeon-E3 1270 v6"), "xeon e3-1270v6");
         assert_eq!(cpu_key("E5-2680v1"), "e5-2680");
+        assert_eq!(
+            cpu_key("Intel Xeon E3-1284L v4 Quad Core 2.90 GHz"),
+            "xeon e3-1284lv4"
+        );
+        assert_eq!(
+            cpu_key("AMD Opteron X2150 APU, 4 cores 1.8GHz"),
+            "opteron x2150"
+        );
     }
 
     #[test]

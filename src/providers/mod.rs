@@ -10,11 +10,16 @@ use crate::model::Offer;
 
 pub mod alpenhost;
 pub mod avoro;
+pub mod bacloud;
 pub mod cherry;
 pub mod clouvider;
 pub mod contabo;
 pub mod datapacket;
 pub mod dedibox;
+pub mod dedimax;
+pub mod evoluso;
+pub mod fasthosts;
+pub mod flokinet;
 pub mod hetzner;
 pub mod hivelocity;
 pub mod hostkey;
@@ -27,22 +32,34 @@ pub mod latitude;
 pub mod leaseweb;
 pub mod mevspace;
 pub mod netcup;
+pub mod netrouting;
+pub mod nforce;
 pub mod nocix;
+pub mod novoserve;
 pub mod nuxoa;
 pub mod oneprovider;
 pub mod ovh;
 pub mod pebblehost;
 pub mod phoenixnap;
+pub mod prepaidhoster;
 pub mod psychz;
+pub mod rapidswitch;
 pub mod scaleway;
 pub mod server4you;
+pub mod servermania;
 pub mod servernet;
+pub mod serverroom;
 pub mod serverscom;
+pub mod spectraip;
+pub mod speedypage;
 pub mod tiernet;
 pub mod velia;
 pub mod vultr;
+pub mod webnx;
 pub mod webtropia;
+pub mod whmcs_hosts;
 pub mod worldstream;
+pub mod zap;
 
 type Fetch = for<'a> fn(
     &'a reqwest::Client,
@@ -93,6 +110,25 @@ pub const ALL: &[(&str, Fetch)] = &[
     ("velia", fetcher!(velia::fetch)),
     ("nocix", fetcher!(nocix::fetch)),
     ("i3d", fetcher!(i3d::fetch)),
+    ("serverroom", fetcher!(serverroom::fetch)),
+    ("netrouting", fetcher!(netrouting::fetch)),
+    ("novoserve", fetcher!(novoserve::fetch)),
+    ("nforce", fetcher!(nforce::fetch)),
+    ("evoluso", fetcher!(evoluso::fetch)),
+    ("flokinet", fetcher!(flokinet::fetch)),
+    ("spectraip", fetcher!(spectraip::fetch)),
+    ("speedypage", fetcher!(speedypage::fetch)),
+    ("fasthosts", fetcher!(fasthosts::fetch)),
+    ("rapidswitch", fetcher!(rapidswitch::fetch)),
+    ("bacloud", fetcher!(bacloud::fetch)),
+    ("zap", fetcher!(zap::fetch)),
+    ("prepaidhoster", fetcher!(prepaidhoster::fetch)),
+    ("dedimax", fetcher!(dedimax::fetch)),
+    ("webnx", fetcher!(webnx::fetch)),
+    ("servermania", fetcher!(servermania::fetch)),
+    ("quickpacket", fetcher!(whmcs_hosts::quickpacket)),
+    ("racknerd", fetcher!(whmcs_hosts::racknerd)),
+    ("greencloud", fetcher!(whmcs_hosts::greencloud)),
 ];
 
 /// Pages behind Cloudflare JavaScript challenges: (provider, url, JS that is

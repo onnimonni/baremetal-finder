@@ -5,9 +5,11 @@ mod hw;
 mod model;
 mod passmark;
 mod providers;
+mod specs;
 mod util;
 #[cfg(feature = "webview")]
 mod webview;
+mod whmcs;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};

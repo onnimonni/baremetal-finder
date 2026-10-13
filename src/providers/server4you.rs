@@ -9,7 +9,7 @@ use regex::Regex;
 use serde_json::Value;
 
 use crate::model::{Offer, Stock};
-use crate::util::{first_num, get_text, parse_storage};
+use crate::util::{balanced_json, first_num, get_text, parse_storage};
 
 const URL: &str = "https://server4you.com/de/dedicated-server/";
 
@@ -27,8 +27,9 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
         .find(r#""servers":["#)
         .context("server4you: no servers array")?
         + r#""servers":"#.len();
-    let servers: Value =
-        serde_json::from_str(balanced(&flight[start..]).context("server4you: unbalanced JSON")?)?;
+    let servers: Value = serde_json::from_str(
+        balanced_json(&flight[start..]).context("server4you: unbalanced JSON")?,
+    )?;
 
     let mut out = Vec::new();
     for s in servers.as_array().into_iter().flatten() {
@@ -96,33 +97,4 @@ pub async fn fetch(client: &reqwest::Client) -> Result<Vec<Offer>> {
         }
     }
     Ok(out)
-}
-
-/// The JSON value at the start of `s` (array/object), by bracket matching
-/// that skips string contents.
-fn balanced(s: &str) -> Option<&str> {
-    let (mut depth, mut in_str, mut esc) = (0i32, false, false);
-    for (i, ch) in s.char_indices() {
-        if in_str {
-            match (esc, ch) {
-                (true, _) => esc = false,
-                (false, '\\') => esc = true,
-                (false, '"') => in_str = false,
-                _ => {}
-            }
-            continue;
-        }
-        match ch {
-            '"' => in_str = true,
-            '[' | '{' => depth += 1,
-            ']' | '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(&s[..=i]);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
 }

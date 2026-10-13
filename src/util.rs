@@ -124,6 +124,35 @@ pub fn currency(code: &str) -> Option<&'static str> {
     KNOWN.iter().find(|c| c.eq_ignore_ascii_case(code)).copied()
 }
 
+/// The JSON value at the start of `s` (array/object), by bracket matching
+/// that skips string contents.
+pub fn balanced_json(s: &str) -> Option<&str> {
+    let (mut depth, mut in_str, mut esc) = (0i32, false, false);
+    for (i, ch) in s.char_indices() {
+        if in_str {
+            match (esc, ch) {
+                (true, _) => esc = false,
+                (false, '\\') => esc = true,
+                (false, '"') => in_str = false,
+                _ => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_str = true,
+            '[' | '{' => depth += 1,
+            ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(&s[..=i]);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 /// Normalize whitespace and strip trademark noise.
 pub fn clean(s: &str) -> String {
     s.replace(['™', '®'], "")

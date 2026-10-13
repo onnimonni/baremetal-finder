@@ -117,6 +117,10 @@ pub fn save_cpu_scores(conn: &Connection, cpus: &[Cpu]) -> Result<()> {
 /// "2 x Intel Xeon Gold 5120" -> (2, "Intel Xeon Gold 5120") unless the
 /// provider already gave a count.
 fn split_cpu_count(cpu: &str, count: u32) -> (u32, String) {
+    // "Intel Dual Xeon E5-2680v3"
+    if let Some((vendor, rest)) = cpu.split_once(" Dual ") {
+        return (count.max(2), format!("{vendor} {rest}"));
+    }
     for (word, n) in [("Single ", 1), ("Dual ", 2), ("Quad ", 4)] {
         if let Some(rest) = cpu.strip_prefix(word) {
             return (count.max(n), rest.to_string());
