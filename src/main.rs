@@ -99,9 +99,7 @@ fn main() -> Result<()> {
         Cmd::Fetch { provider } => {
             // The OS web engine needs the main thread, so it runs before tokio.
             #[cfg(feature = "webview")]
-            if provider.is_empty() || provider.iter().any(|p| p == "avoro") {
-                providers::avoro::prefetch_with_webview();
-            }
+            providers::prefetch_webview_pages(&provider);
             tokio::runtime::Runtime::new()?.block_on(fetch(&cli.db, &provider))
         }
         Cmd::Top(args) => top(&cli.db, &args),

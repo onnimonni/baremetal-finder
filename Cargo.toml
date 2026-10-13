@@ -9,7 +9,7 @@ keywords = ["dedicated-server", "bare-metal", "hosting", "duckdb", "scraper"]
 
 [features]
 # Load Cloudflare JS-challenged sites (avoro) through the OS web engine.
-webview = ["dep:wry", "dep:tao"]
+webview = ["dep:wry", "dep:tao", "dep:objc2-web-kit"]
 
 [dependencies]
 anyhow = "1.0.104"
@@ -28,3 +28,6 @@ wreq = { version = "0.16.1", features = ["gzip", "brotli", "cookies", "json"] }
 wreq-util = { version = "0.2.0", features = ["emulation", "emulation-compression"] }
 wry = { version = "0.57.0", optional = true }
 tao = { version = "0.37.1", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-web-kit = { version = "0.3.2", optional = true, features = ["WKWebView", "WKWebViewConfiguration", "WKPreferences"] }

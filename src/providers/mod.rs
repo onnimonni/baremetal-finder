@@ -1,6 +1,9 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use std::collections::HashMap;
+use std::sync::{LazyLock, Mutex};
+
 use anyhow::Result;
 
 use crate::model::Offer;
@@ -91,3 +94,38 @@ pub const ALL: &[(&str, Fetch)] = &[
     ("nocix", fetcher!(nocix::fetch)),
     ("i3d", fetcher!(i3d::fetch)),
 ];
+
+/// Pages behind Cloudflare JavaScript challenges: (provider, url, JS that is
+/// true once the real content is there). With the `webview` feature these
+/// are loaded through the OS web engine before the async fetch starts; the
+/// provider then reads them with [`prefetched`]. Add new sites here.
+#[cfg_attr(not(feature = "webview"), allow(dead_code))]
+pub const WEBVIEW_PAGES: &[(&str, &str, &str)] = &[("avoro", avoro::URL, avoro::READY)];
+
+static PREFETCHED: LazyLock<Mutex<HashMap<String, String>>> = LazyLock::new(Default::default);
+
+/// HTML the webview loaded for `url`, if any.
+pub fn prefetched(url: &str) -> Option<String> {
+    PREFETCHED.lock().ok()?.get(url).cloned()
+}
+
+/// Load every challenged page of the selected providers (blocking; must run
+/// on the main thread before the tokio runtime starts).
+#[cfg(feature = "webview")]
+pub fn prefetch_webview_pages(only: &[String]) {
+    for (provider, url, ready) in WEBVIEW_PAGES {
+        if !only.is_empty() && !only.iter().any(|o| o == provider) {
+            continue;
+        }
+        // Cloudflare's interstitial is titled "Just a moment...".
+        let ready = format!("!document.title.includes('Just a moment') && ({ready})");
+        match crate::webview::grab(url, &ready) {
+            Ok(html) => {
+                if let Ok(mut m) = PREFETCHED.lock() {
+                    m.insert((*url).to_string(), html);
+                }
+            }
+            Err(e) => eprintln!("{provider} webview: {e:#}"),
+        }
+    }
+}

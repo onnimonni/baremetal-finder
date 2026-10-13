@@ -37,24 +37,29 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
     let debug = std::env::var_os("BMF_WEBVIEW_DEBUG").is_some();
     let interactive = std::io::stderr().is_terminal();
     let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
+    #[cfg(target_os = "macos")]
+    {
+        // Background app: no Dock icon or menu bar unless a window is shown.
+        use tao::platform::macos::{ActivationPolicy, EventLoopExtMacOS};
+        event_loop.set_activation_policy(ActivationPolicy::Accessory);
+    }
     let proxy = event_loop.create_proxy();
-    // A hidden window gets its page throttled by the OS and the challenge
-    // never finishes, so keep it "visible" but off-screen.
+    // Hidden unless the user must click Cloudflare's check (or debugging).
     let window = WindowBuilder::new()
         .with_title(format!("baremetal-finder: {url}"))
+        .with_visible(debug)
         .with_focused(debug)
         .with_inner_size(LogicalSize::new(900.0, 700.0))
-        .with_position(if debug {
-            LogicalPosition::new(100.0, 100.0)
-        } else {
-            LogicalPosition::new(-10_000.0, -10_000.0)
-        })
+        .with_position(LogicalPosition::new(100.0, 100.0))
         .build(&event_loop)?;
 
     let poll = format!(
         "setInterval(() => {{ try {{ window.ipc.postMessage(({ready}) ? document.documentElement.outerHTML : 'status:' + document.title); }} catch (e) {{ window.ipc.postMessage('status:error ' + e); }} }}, 1000);"
     );
+    // BMF_WEBVIEW_FRESH=1 ignores saved cookies (forces the challenge).
+    let fresh = std::env::var_os("BMF_WEBVIEW_FRESH").is_some();
     let webview = WebViewBuilder::new()
+        .with_incognito(fresh)
         .with_url(url)
         .with_initialization_script(&poll)
         .with_ipc_handler(move |req| {
@@ -68,6 +73,15 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
 
     #[cfg(not(target_os = "linux"))]
     let _webview = webview.build(&window)?;
+    #[cfg(target_os = "macos")]
+    {
+        // WebKit suspends/throttles pages in hidden windows; let Cloudflare's
+        // non-interactive challenge run to completion (macOS 14+).
+        use objc2_web_kit::WKInactiveSchedulingPolicy;
+        use wry::WebViewExtMacOS;
+        let prefs = unsafe { _webview.webview().configuration().preferences() };
+        unsafe { prefs.setInactiveSchedulingPolicy(WKInactiveSchedulingPolicy::None) };
+    }
     #[cfg(target_os = "linux")]
     let _webview = {
         use tao::platform::unix::WindowExtUnix;
@@ -83,7 +97,7 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
     let mut asked = false;
     let mut html = None;
     let mut last_title = String::new();
-    event_loop.run_return(|event, _, control_flow| {
+    event_loop.run_return(|event, target, control_flow| {
         *control_flow = ControlFlow::WaitUntil(deadline);
         match event {
             Event::UserEvent(UserEvent::Html(body)) => {
@@ -101,7 +115,16 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
             _ if !asked && interactive => {
                 asked = true;
                 deadline = Instant::now() + INTERACTIVE;
-                window.set_outer_position(LogicalPosition::new(100.0, 100.0));
+                // Bring the page to the front, above the terminal.
+                #[cfg(target_os = "macos")]
+                {
+                    use tao::platform::macos::{ActivationPolicy, EventLoopWindowTargetExtMacOS};
+                    target.set_activation_policy_at_runtime(ActivationPolicy::Regular);
+                }
+                #[cfg(not(target_os = "macos"))]
+                let _ = target;
+                window.set_visible(true);
+                window.set_always_on_top(true);
                 window.set_focus();
                 eprintln!(
                     "Cloudflare wants a human check for {url}.\nClick \"Verify you are human\" in the opened window (waiting {}s)…",
