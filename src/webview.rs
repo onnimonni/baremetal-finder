@@ -19,8 +19,9 @@ use tao::platform::run_return::EventLoopExtRunReturn;
 use tao::window::WindowBuilder;
 use wry::WebViewBuilder;
 
-/// How long to wait off-screen before asking the user for the check.
-const QUIET: Duration = Duration::from_secs(20);
+/// How long to wait hidden for Cloudflare's no-click check before asking the
+/// user (it normally clears within a few seconds).
+const QUIET: Duration = Duration::from_secs(3);
 /// How long the user gets to click the check.
 const INTERACTIVE: Duration = Duration::from_secs(120);
 
@@ -30,7 +31,7 @@ enum UserEvent {
 }
 
 /// Load `url` and return `document.documentElement.outerHTML` once the JS
-/// expression `ready` is true (polled every second in every loaded page, so it
+/// expression `ready` is true (polled twice a second in every loaded page, so it
 /// also runs on the page a challenge redirects to).
 pub fn grab(url: &str, ready: &str) -> Result<String> {
     // BMF_WEBVIEW_DEBUG=1 shows the window from the start and logs titles.
@@ -54,7 +55,7 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
         .build(&event_loop)?;
 
     let poll = format!(
-        "setInterval(() => {{ try {{ window.ipc.postMessage(({ready}) ? document.documentElement.outerHTML : 'status:' + document.title); }} catch (e) {{ window.ipc.postMessage('status:error ' + e); }} }}, 1000);"
+        "setInterval(() => {{ try {{ window.ipc.postMessage(({ready}) ? document.documentElement.outerHTML : 'status:' + document.title); }} catch (e) {{ window.ipc.postMessage('status:error ' + e); }} }}, 500);"
     );
     // BMF_WEBVIEW_FRESH=1 ignores saved cookies (forces the challenge).
     let fresh = std::env::var_os("BMF_WEBVIEW_FRESH").is_some();
@@ -103,6 +104,7 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
             Event::UserEvent(UserEvent::Html(body)) => {
                 html = Some(body);
                 *control_flow = ControlFlow::Exit;
+                return;
             }
             Event::UserEvent(UserEvent::Status(title)) => {
                 if debug && title != last_title {
@@ -110,29 +112,38 @@ pub fn grab(url: &str, ready: &str) -> Result<String> {
                 }
                 last_title = title;
             }
-            _ if Instant::now() < deadline => {}
-            // Still on the challenge after the quiet period: ask once.
-            _ if !asked && interactive => {
-                asked = true;
-                deadline = Instant::now() + INTERACTIVE;
-                // Bring the page to the front, above the terminal.
-                #[cfg(target_os = "macos")]
-                {
-                    use tao::platform::macos::{ActivationPolicy, EventLoopWindowTargetExtMacOS};
-                    target.set_activation_policy_at_runtime(ActivationPolicy::Regular);
-                }
-                #[cfg(not(target_os = "macos"))]
-                let _ = target;
-                window.set_visible(true);
-                window.set_always_on_top(true);
-                window.set_focus();
-                eprintln!(
-                    "Cloudflare wants a human check for {url}.\nClick \"Verify you are human\" in the opened window (waiting {}s)…",
-                    INTERACTIVE.as_secs()
-                );
-            }
-            _ => *control_flow = ControlFlow::Exit,
+            _ => {}
         }
+        let waited_out = Instant::now() >= deadline;
+        // Keep polling hidden until the quiet period ends: the challenge
+        // often clears without a click.
+        if asked || !waited_out {
+            if asked && waited_out {
+                *control_flow = ControlFlow::Exit;
+            }
+            return;
+        }
+        if !interactive {
+            *control_flow = ControlFlow::Exit;
+            return;
+        }
+        // Show the page in front of the terminal, once.
+        asked = true;
+        deadline = Instant::now() + INTERACTIVE;
+        #[cfg(target_os = "macos")]
+        {
+            use tao::platform::macos::{ActivationPolicy, EventLoopWindowTargetExtMacOS};
+            target.set_activation_policy_at_runtime(ActivationPolicy::Regular);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = target;
+        window.set_visible(true);
+        window.set_always_on_top(true);
+        window.set_focus();
+        eprintln!(
+            "Cloudflare wants a human check for {url}.\nClick \"Verify you are human\" in the opened window (waiting {}s)…",
+            INTERACTIVE.as_secs()
+        );
     });
     match html {
         Some(h) => Ok(h),
