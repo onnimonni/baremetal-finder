@@ -7,6 +7,10 @@ license = "MIT"
 repository = "https://github.com/onnimonni/baremetal-finder"
 keywords = ["dedicated-server", "bare-metal", "hosting", "duckdb", "scraper"]
 
+[features]
+# Load Cloudflare JS-challenged sites (avoro) through the OS web engine.
+webview = ["dep:wry", "dep:tao"]
+
 [dependencies]
 anyhow = "1.0.104"
 chrono = "0.4.45"
@@ -22,3 +26,5 @@ serde_json = "1.0.152"
 tokio = { version = "1.53.2", features = ["macros", "rt-multi-thread"] }
 wreq = { version = "0.16.1", features = ["gzip", "brotli", "cookies", "json"] }
 wreq-util = { version = "0.2.0", features = ["emulation", "emulation-compression"] }
+wry = { version = "0.57.0", optional = true }
+tao = { version = "0.37.1", optional = true }

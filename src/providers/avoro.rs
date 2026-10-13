@@ -1,5 +1,9 @@
 //! avoro (dataforest, DE): "instant dedicated" lists physical servers that
-//! are ready now, one card per machine. Prices include 19% VAT.
+//! are ready now, one card per machine. Prices include 19% VAT. The site is
+//! behind a Cloudflare JavaScript challenge; with the `webview` feature the
+//! page is loaded through the OS web engine first.
+
+use std::sync::OnceLock;
 
 use anyhow::Result;
 use scraper::{ElementRef, Html, Selector};
@@ -8,6 +12,22 @@ use crate::model::{Offer, Stock};
 use crate::util::{browser, browser_text, clean, first_num, parse_storage};
 
 const URL: &str = "https://avoro.eu/de/instant-dedicated";
+
+/// HTML loaded by the webview before the async fetch starts.
+static PREFETCHED: OnceLock<String> = OnceLock::new();
+
+/// Load the page through the OS web engine (blocking, main thread only).
+#[cfg(feature = "webview")]
+pub fn prefetch_with_webview() {
+    // Ready once Cloudflare has redirected to the real page.
+    let ready = "!document.title.includes('Just a moment') && document.querySelector('#serverList, .server-item')";
+    match crate::webview::grab(URL, ready) {
+        Ok(html) => {
+            let _ = PREFETCHED.set(html);
+        }
+        Err(e) => eprintln!("avoro webview: {e:#}"),
+    }
+}
 
 fn sel(s: &str) -> Selector {
     Selector::parse(s).expect("static CSS selector is valid")
@@ -18,8 +38,12 @@ fn text(e: ElementRef) -> String {
 }
 
 pub async fn fetch(_client: &reqwest::Client) -> Result<Vec<Offer>> {
-    // Cloudflare blocks non-browser TLS here.
-    let html = browser_text(&browser()?, URL).await?;
+    let html = match PREFETCHED.get() {
+        Some(h) => h.clone(),
+        None => browser_text(&browser()?, URL).await.map_err(|e| {
+            e.context("avoro is behind a Cloudflare JS challenge; build with --features webview")
+        })?,
+    };
     let doc = Html::parse_document(&html);
     let item = sel(".server-item");
     let title_s = sel("h5.server-item-title");

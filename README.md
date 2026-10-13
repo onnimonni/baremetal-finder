@@ -89,7 +89,7 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 | webtropia | store API (browser TLS) | in stock / limited / sold |
 | server4you | flight data + order page | per variant |
 | Ikoula | HTML + shop page | per product |
-| avoro | instant list HTML (currently behind a Cloudflare JS challenge, fetch fails) | listed = available |
+| avoro | instant list HTML (Cloudflare JS challenge: needs `--features webview`) | listed = available |
 | Velia | Upmind API | unknown |
 | Nocix / WholeSaleInternet | HTML + cart page (browser TLS) | in / out of stock |
 | i3D.net | marketing page (browser TLS) + FlexMetal API | unknown (set `I3D_TOKEN` for per-location stock) |
@@ -97,6 +97,10 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 ## Browser TLS fingerprints
 
 A few sites (webtropia, Nocix/WholeSaleInternet, i3D.net) sit behind Cloudflare checks that reject non-browser TLS handshakes. Those are fetched with [wreq](https://github.com/0x676e67/wreq) + `wreq-util` emulating Chrome's BoringSSL ClientHello and HTTP/2 settings, straight from your own IP (no proxies). Building it compiles BoringSSL, so `cmake` and a C compiler are needed (included in `devenv.nix`).
+
+## Cloudflare JavaScript challenges (`webview` feature)
+
+avoro sits behind a Cloudflare challenge that only a real browser engine passes. Build with `cargo build --release --features webview` to load it through the operating system's own web engine (WebKit on macOS/Linux, WebView2 on Windows) via [wry](https://github.com/tauri-apps/wry), in-process from a small off-screen window. When Cloudflare asks for its interactive "Verify you are human" check, the window moves on-screen and `fetch` waits up to 2 minutes for you to click it; the clearance cookie is kept by the OS web engine, so later runs pass silently until it expires. The check is never clicked automatically. Non-interactive runs (cron/CI) skip the provider with a message instead of waiting. On Linux this needs WebKitGTK and a display. `BMF_WEBVIEW_DEBUG=1` shows the window from the start.
 
 ## Caveats
 

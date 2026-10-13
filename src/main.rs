@@ -6,6 +6,8 @@ mod model;
 mod passmark;
 mod providers;
 mod util;
+#[cfg(feature = "webview")]
+mod webview;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand, ValueEnum};
@@ -91,11 +93,17 @@ enum Sort {
     Price,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Fetch { provider } => fetch(&cli.db, &provider).await,
+        Cmd::Fetch { provider } => {
+            // The OS web engine needs the main thread, so it runs before tokio.
+            #[cfg(feature = "webview")]
+            if provider.is_empty() || provider.iter().any(|p| p == "avoro") {
+                providers::avoro::prefetch_with_webview();
+            }
+            tokio::runtime::Runtime::new()?.block_on(fetch(&cli.db, &provider))
+        }
         Cmd::Top(args) => top(&cli.db, &args),
         Cmd::Providers => {
             for (name, _) in providers::ALL {
