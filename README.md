@@ -1,6 +1,6 @@
 # baremetal-finder
 
-Find the best price/performance dedicated (bare-metal) servers and VPS that are **in stock right now**, across 80 provider catalogs, with an EU-only filter.
+Find the best price/performance dedicated (bare-metal) servers and VPS that are **in stock right now**, across 93 provider catalogs, with an EU-only filter.
 
 It fetches public catalogs, prices and stock signals, scores every CPU with [PassMark](https://www.cpubenchmark.net/) and stores snapshots in DuckDB so you can rank offers by benchmark points per euro.
 
@@ -125,6 +125,19 @@ duckdb servers.duckdb "SELECT * FROM ranked WHERE is_eu AND stock = 'in_stock' O
 | Gcore | pricing calculator JSON | unknown |
 | Advin Servers | dedicated JSON | in / out of stock |
 | Datawagon | Next.js flight data | quantity |
+| GTHost | for-sale API (one row per machine, ~2000) | machines per spec + location |
+| Primcast | ready-servers API (paged by price) | machines per spec + location |
+| dedicated.com | HTML cards | units left per location |
+| Tempest | portal catalog JSON | in / out of stock |
+| ServerPoint | public sizes API | in / out of stock |
+| ColoCrossing | HTML table | orderable / contact to order |
+| Zomro | HTML table (paged) | quantity; else build-to-order |
+| Nexril | schema.org JSON-LD | in / out of stock |
+| ServerAstra | WHMCS cart table | listed = available |
+| Servers Australia | available-servers API | listed = available |
+| Alwyzon | Next.js page data (dedicated + VPS) | in / out of stock |
+| BinaryLane (AU) | public sizes API (dedicated + VPS) | per region |
+| Servarica / Spartan Host / LiteServer | WHMCS store | quantity |
 
 ### VPS / cloud (`--kind vps`)
 
@@ -155,7 +168,7 @@ To add another challenged site, list it in `WEBVIEW_PAGES` in `src/providers/mod
 
 ## Caveats
 
-- Prices are monthly, converted to EUR with ECB rates. Most are excl. VAT; where a site only shows gross prices VAT is stripped (noted in `note`). Latitude, Clouvider, PebbleHost and server4you may include tax; hosttech CHF prices are taken as shown. STRATO and aurologic prices are converted from gross (19% VAT), Sakura from gross JPY (10%).
+- Prices are monthly, converted to EUR with ECB rates. Most are excl. VAT; where a site only shows gross prices VAT is stripped (noted in `note`). Latitude, Clouvider, PebbleHost and server4you may include tax; hosttech CHF prices are taken as shown. STRATO and aurologic prices are converted from gross (19% VAT), Sakura from gross JPY (10%), BinaryLane from gross AUD (10% GST).
 - Several providers show promo or long-term prices on listings; the tool prefers month-to-month prices (e.g. Alpenhost order pages, Psychz renewal price). IONOS prices are first-year promos (regular price in `note`).
 - CPU scores (`score_source`): `passmark_exact` / `passmark_token` (PassMark, matched by name or model number incl. spelling variants like "EPYC 9355" → "9355P", "Xeon-D 2141I" → "D-2141I"), `provider` / `provider_pooled` (a score the provider publishes, shared across providers with the same CPU), `estimate_sibling` (closest PassMark model in the same family with a similar core count, scaled per core; `passmark_name` starts with `~`). Multi-socket boxes use PassMark's measured multi-CPU score when available, otherwise ~1.7× per extra socket.
 - `ram_type` (DDR3/4/5) comes from the listing text when present (`ram_type_source = 'provider'`), otherwise from the CPU platform (`'cpu'`, e.g. AM5/SP5 are DDR5-only). `nvme_gen` (PCIe 3/4/5) is only set when the provider states it.

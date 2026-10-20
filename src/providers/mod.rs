@@ -10,15 +10,19 @@ use crate::model::Offer;
 
 pub mod advin;
 pub mod alpenhost;
+pub mod alwyzon;
 pub mod aurologic;
 pub mod avoro;
 pub mod bacloud;
+pub mod binarylane;
 pub mod cherry;
 pub mod clouvider;
+pub mod colocrossing;
 pub mod contabo;
 pub mod datapacket;
 pub mod datawagon;
 pub mod dedibox;
+pub mod dedicated_com;
 pub mod dedimax;
 pub mod digitalocean;
 pub mod dinahosting;
@@ -28,6 +32,7 @@ pub mod fasthosts;
 pub mod fdc;
 pub mod flokinet;
 pub mod gcore;
+pub mod gthost;
 pub mod hetzner;
 pub mod hetznercloud;
 pub mod hivelocity;
@@ -46,6 +51,7 @@ pub mod melbicom;
 pub mod mevspace;
 pub mod netcup;
 pub mod netrouting;
+pub mod nexril;
 pub mod nforce;
 pub mod nocix;
 pub mod novoserve;
@@ -56,21 +62,26 @@ pub mod ovh_vps;
 pub mod pebblehost;
 pub mod phoenixnap;
 pub mod prepaidhoster;
+pub mod primcast;
 pub mod psychz;
 pub mod rapidswitch;
 pub mod sakura;
 pub mod scaleway;
 pub mod scaleway_instances;
 pub mod server4you;
+pub mod serverastra;
 pub mod servermania;
 pub mod servernet;
+pub mod serverpoint;
 pub mod serverroom;
+pub mod serversaustralia;
 pub mod serverscom;
 pub mod sharktech;
 pub mod shockhosting;
 pub mod spectraip;
 pub mod speedypage;
 pub mod strato;
+pub mod tempest;
 pub mod tiernet;
 pub mod upcloud;
 pub mod velia;
@@ -80,6 +91,7 @@ pub mod webtropia;
 pub mod whmcs_hosts;
 pub mod worldstream;
 pub mod zap;
+pub mod zomro;
 
 type Fetch = for<'a> fn(
     &'a reqwest::Client,
@@ -168,6 +180,21 @@ pub const ALL: &[(&str, Fetch)] = &[
     ("gcore", fetcher!(gcore::fetch)),
     ("advin", fetcher!(advin::fetch)),
     ("datawagon", fetcher!(datawagon::fetch)),
+    ("gthost", fetcher!(gthost::fetch)),
+    ("alwyzon", fetcher!(alwyzon::fetch)),
+    ("binarylane", fetcher!(binarylane::fetch)),
+    ("servarica", fetcher!(whmcs_hosts::servarica)),
+    ("spartanhost", fetcher!(whmcs_hosts::spartanhost)),
+    ("liteserver", fetcher!(whmcs_hosts::liteserver)),
+    ("primcast", fetcher!(primcast::fetch)),
+    ("dedicatedcom", fetcher!(dedicated_com::fetch)),
+    ("tempest", fetcher!(tempest::fetch)),
+    ("serverpoint", fetcher!(serverpoint::fetch)),
+    ("colocrossing", fetcher!(colocrossing::fetch)),
+    ("zomro", fetcher!(zomro::fetch)),
+    ("nexril", fetcher!(nexril::fetch)),
+    ("serverastra", fetcher!(serverastra::fetch)),
+    ("serversaustralia", fetcher!(serversaustralia::fetch)),
     ("vultr_vps", fetcher!(vultr::vps)),
     ("scaleway_instances", fetcher!(scaleway_instances::fetch)),
     ("ovh_vps", fetcher!(ovh_vps::fetch)),

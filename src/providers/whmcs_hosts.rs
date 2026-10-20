@@ -1,5 +1,5 @@
 //! Small WHMCS hosts sharing the same store template: QuickPacket, RackNerd,
-//! GreenCloud, Servinga. Location comes from the store group (or "US" when the group
+//! GreenCloud, Servinga, Servarica, Spartan Host, LiteServer. Location comes from the store group (or "US" when the group
 //! doesn't say).
 
 use anyhow::Result;
@@ -69,6 +69,36 @@ const SERVINGA: &[Group] = &[(
     "Rotterdam",
 )];
 
+const SERVARICA: &[Group] = &[
+    (
+        "https://clients.servarica.com/store/dedicated-servers",
+        "CA",
+        "Montreal",
+    ),
+    (
+        "https://clients.servarica.com/store/bf-2025-dedicated-servers",
+        "CA",
+        "Montreal",
+    ),
+];
+const SPARTANHOST: &[Group] = &[
+    (
+        "https://billing.spartanhost.net/store/dallas-rapid-deploy-dedicated-servers",
+        "US",
+        "Dallas",
+    ),
+    (
+        "https://billing.spartanhost.net/store/ddos-protected-seattle-dedicated-servers-china-optimised",
+        "US",
+        "Seattle",
+    ),
+];
+const LITESERVER: &[Group] = &[(
+    "https://clients.liteserver.nl/index.php?rp=/store/virtual-dedicated-server",
+    "NL",
+    "Dronten",
+)];
+
 pub async fn quickpacket(client: &reqwest::Client) -> Result<Vec<Offer>> {
     scrape(Http::Plain(client), "quickpacket", QUICKPACKET, "USD").await
 }
@@ -80,6 +110,18 @@ pub async fn racknerd(_client: &reqwest::Client) -> Result<Vec<Offer>> {
 
 pub async fn greencloud(client: &reqwest::Client) -> Result<Vec<Offer>> {
     scrape(Http::Plain(client), "greencloud", GREENCLOUD, "USD").await
+}
+
+pub async fn servarica(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    scrape(Http::Plain(client), "servarica", SERVARICA, "USD").await
+}
+
+pub async fn spartanhost(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    scrape(Http::Plain(client), "spartanhost", SPARTANHOST, "USD").await
+}
+
+pub async fn liteserver(client: &reqwest::Client) -> Result<Vec<Offer>> {
+    scrape(Http::Plain(client), "liteserver", LITESERVER, "EUR").await
 }
 
 /// Prices exclude VAT; sold-out products are hidden from the store.
@@ -143,14 +185,18 @@ async fn scrape(
             if !seen.insert(p.id.clone()) {
                 continue;
             }
-            // QuickPacket names the plan after its CPU.
-            let mut lines = vec![p.name.clone()];
-            lines.extend(
-                p.lines
-                    .iter()
-                    .map(|l| l.trim_start_matches(['-', '•', ' ']).to_string()),
-            );
-            let s = specs::from_lines(&lines);
+            let desc: Vec<String> = p
+                .lines
+                .iter()
+                .map(|l| l.trim_start_matches(['-', '•', ' ']).to_string())
+                .collect();
+            let mut s = specs::from_lines(&desc);
+            // QuickPacket and Spartan Host name the plan after its CPU.
+            if s.cpu.is_empty() {
+                let mut lines = vec![p.name.clone()];
+                lines.extend(desc.iter().cloned());
+                s = specs::from_lines(&lines);
+            }
             let (country, location) = place_from_lines(&p.lines).unwrap_or((country, location));
             let mut o = Offer::new(provider, p.id.clone());
             o.name = p.name.clone();

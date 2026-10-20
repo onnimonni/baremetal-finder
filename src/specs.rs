@@ -21,12 +21,12 @@ pub struct Specs {
 
 pub fn from_lines(lines: &[String]) -> Specs {
     static CPU: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)\b(xeon|epyc|ryzen|opteron|threadripper|atom|core\s+i[3579]|core\s+ultra|i[3579]-\d{4})").expect("static regex is valid")
+        Regex::new(r"(?i)\b(xeon|epyc|ryzen|opteron|threadripper|atom|core\s+i[3579]|core\s+ultra|i[3579]-\d{4}|\bE[357]?-\d{4})").expect("static regex is valid")
     });
     static COUNT: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?i)^(\d+)\s*x\s*").expect("static regex is valid"));
     static PER_CPU_CORES: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)\b(\d+)[- ]?core\b|\((\d+)\s*c\s*/\s*(\d+)\s*t")
+        Regex::new(r"(?i)\b(\d+)[- ]?cores?\b|\((\d+)\s*c\s*/\s*(\d+)\s*t")
             .expect("static regex is valid")
     });
     static CORES: LazyLock<Regex> = LazyLock::new(|| {
@@ -35,6 +35,9 @@ pub fn from_lines(lines: &[String]) -> Specs {
     });
     static THREADS: LazyLock<Regex> =
         LazyLock::new(|| Regex::new(r"(?i)\b(\d+)[- ]?threads?\b").expect("static regex is valid"));
+    // "Intel Xeon E5-2650 v2 128gb RAM"
+    static RAM_TAIL: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?i)\s+\d+\s*gb\b").expect("static regex is valid"));
     static PORT: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)(\d+(?:\.\d+)?)\s*(g|m)(?:bit|bps|b/s|bit/s)")
             .expect("static regex is valid")
@@ -65,6 +68,13 @@ pub fn from_lines(lines: &[String]) -> Specs {
                     .and_then(|m| m.as_str().parse::<u32>().ok())
                     .map(|t| t * s.cpu_count);
             }
+            let cpu = cpu.trim_start_matches("CPU Model:").trim();
+            let cpu = RAM_TAIL.split(cpu).next().unwrap_or(cpu);
+            if s.threads.is_none()
+                && let Some(t) = THREADS.captures(cpu)
+            {
+                s.threads = t[1].parse::<u32>().ok().map(|t| t * s.cpu_count);
+            }
             let cleaned = PER_CPU_CORES.replace_all(cpu, "");
             s.cpu = cleaned
                 .split(['(', ',', '|'])
@@ -74,6 +84,10 @@ pub fn from_lines(lines: &[String]) -> Specs {
                 .replace(" CPU", "")
                 .trim()
                 .to_string();
+            // "E5-2660v2 (10 cores 20 threads)" names only the model.
+            if s.cpu.starts_with('E') {
+                s.cpu = format!("Intel Xeon {}", s.cpu);
+            }
             continue;
         }
         if s.cores.is_none()
@@ -139,6 +153,17 @@ mod tests {
         assert_eq!(s.ram_gb, Some(64.0));
         assert_eq!(s.storage, "2x 480GB SATA3 SSD");
         assert_eq!(s.port_mbps, Some(1000));
+    }
+
+    #[test]
+    fn bare_xeon_model() {
+        let lines: Vec<String> = ["E5-2660v2 (10 cores 20 threads)", "RAM 128GB", "500GB SSD"]
+            .map(String::from)
+            .to_vec();
+        let s = from_lines(&lines);
+        assert_eq!(s.cpu, "Intel Xeon E5-2660v2");
+        assert_eq!(s.cores, Some(10));
+        assert_eq!(s.ram_gb, Some(128.0));
     }
 
     #[test]
