@@ -84,6 +84,10 @@ struct TopArgs {
     sort: Sort,
     #[arg(long, default_value_t = 25)]
     limit: usize,
+    /// Re-fetch the providers in the result before showing it (listings go
+    /// stale fast for the scarcest offers)
+    #[arg(long)]
+    fresh: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -168,7 +172,60 @@ async fn fetch(db_path: &str, only: &[String]) -> Result<()> {
 }
 
 fn top(db_path: &str, a: &TopArgs) -> Result<()> {
+    let sql = top_sql(a);
+    if a.fresh {
+        // Refresh until every provider in the result was fetched in this run.
+        let mut done: Vec<String> = Vec::new();
+        for _ in 0..3 {
+            let conn = db::open(db_path)?;
+            let mut stmt = conn.prepare(&format!("SELECT DISTINCT provider FROM ({sql})"))?;
+            let todo: Vec<String> = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .filter(|p| !done.contains(p))
+                .collect();
+            drop(stmt);
+            drop(conn);
+            if todo.is_empty() {
+                break;
+            }
+            #[cfg(feature = "webview")]
+            providers::prefetch_webview_pages(&todo);
+            tokio::runtime::Runtime::new()?.block_on(fetch(db_path, &todo))?;
+            done.extend(todo);
+        }
+    }
     let conn = db::open(db_path)?;
+    let batches: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
+    println!("{}", pretty_format_batches(&batches)?);
+    // Age of each listed provider's snapshot, oldest first.
+    let mut stmt = conn.prepare(&format!(
+        "SELECT provider, date_diff('minute', max(fetched_at), now())
+         FROM fetch_runs WHERE ok AND provider IN (SELECT DISTINCT provider FROM ({sql}))
+         GROUP BY provider ORDER BY 2 DESC"
+    ))?;
+    let ages: Vec<String> = stmt
+        .query_map([], |r| {
+            Ok(format!(
+                "{} {}m",
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?
+            ))
+        })?
+        .collect::<Result<_, _>>()?;
+    if ages.is_empty() {
+        eprintln!("snapshot: none — run `fetch` first");
+    } else {
+        eprintln!(
+            "snapshot age: {} (use --fresh to re-check)",
+            ages.join(", ")
+        );
+    }
+    Ok(())
+}
+
+fn top_sql(a: &TopArgs) -> String {
     let mut filters = vec!["true".to_string()];
     if a.eu {
         filters.push("is_eu".into());
@@ -235,7 +292,7 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
         Sort::Price => "eur_mo, setup",
     };
     // One row per provider+model+price: OVH/Hetzner repeat offers per datacenter.
-    let sql = format!(
+    format!(
         "SELECT provider, coalesce(kind, 'dedicated') || CASE WHEN shared_cpu THEN '(shared)' ELSE '' END AS kind, name, cpu,
                 coalesce(vcpus::VARCHAR || 'v', cores::VARCHAR) AS c, ram_gb::INT AS ram, ram_type AS mem, storage_gb::INT AS disk_gb,
                 coalesce('gen' || nvme_gen, CASE WHEN nvme THEN 'nvme' END) AS ssd,
@@ -249,20 +306,5 @@ fn top(db_path: &str, a: &TopArgs) -> Result<()> {
          LIMIT {}",
         filters.join(" AND "),
         a.limit
-    );
-    let batches: Vec<RecordBatch> = conn.prepare(&sql)?.query_arrow([])?.collect();
-    println!("{}", pretty_format_batches(&batches)?);
-    let snap: Option<String> = conn
-        .query_row(
-            "SELECT max(fetched_at)::VARCHAR FROM fetch_runs WHERE ok",
-            [],
-            |r| r.get(0),
-        )
-        .ok()
-        .flatten();
-    eprintln!(
-        "snapshot: {}",
-        snap.unwrap_or_else(|| "none — run `fetch` first".into())
-    );
-    Ok(())
+    )
 }

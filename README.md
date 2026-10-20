@@ -39,6 +39,7 @@ cargo run --release -- providers                  # list provider names
 | `--ram-type DDR5` | RAM generation (stated by the provider, else implied by the CPU platform) |
 | `--max-price` | max effective €/month (setup fee spread over 12 months) |
 | `--sort value\|mark\|single\|price` | PassMark per €, multi-thread, single-thread, price |
+| `--fresh` | re-fetch the providers in the result first (scarce offers sell out between fetches); `top` always prints each listed provider's snapshot age |
 
 Everything lands in `servers.duckdb`; query it directly:
 
